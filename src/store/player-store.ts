@@ -107,8 +107,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   currentChannel: null,
   isPlaying: false,
   favorites: [],
-  isDarkMode: false,
-  colorMode: 'auto',
+  isDarkMode: true,
+  colorMode: 'dark',
   importedLists: [],
   activeListId: null,
   activeSources: [],
@@ -207,7 +207,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   initFromStorage: () => {
     if (typeof window !== 'undefined') {
       const favorites = loadFromStorage<string[]>('iptv-favorites', [])
-      const savedColorMode = loadFromStorage<'light' | 'dark' | 'auto'>('iptv-color-mode', 'auto')
+      const savedColorMode = loadFromStorage<'light' | 'dark' | 'auto'>('iptv-color-mode', 'dark')
       const importedLists = loadFromStorage<ImportedList[]>('iptv-imported-lists', [])
       const activeSources = loadFromStorage<string[]>('iptv-active-sources', [])
       const authPassword = loadFromStorage<string>('iptv-auth-password', '')
