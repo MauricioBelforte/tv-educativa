@@ -18,12 +18,48 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const dragNode = useRef<HTMLElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
+  
+  // Estado para virtualización
+  const [scrollTop, setScrollTop] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(0)
+  
+  const ROW_HEIGHT = 68 // altura aproximada de cada card
+  const OVERSCAN = 5 // canales extra arriba/abajo para scroll suave
 
+  // Medir altura del viewport
   useEffect(() => {
-    if (!currentChannelId) return
-    const el = listRef.current?.querySelector(`[data-channel-id="${currentChannelId}"]`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  }, [currentChannelId])
+    const current = listRef.current
+    if (!current) return
+    
+    const updateHeight = () => {
+      setViewportHeight(current.clientHeight)
+    }
+    
+    updateHeight()
+    
+    const resizeObserver = new ResizeObserver(updateHeight)
+    resizeObserver.observe(current)
+    
+    return () => resizeObserver.disconnect()
+  }, [])
+  
+  // ScrollIntoView del canal actual (con virtualización)
+  useEffect(() => {
+    if (!currentChannelId || reorderMode) return
+    const idx = channels.findIndex(c => c.id === currentChannelId)
+    if (idx === -1) return
+    
+    const targetTop = idx * ROW_HEIGHT
+    const currentTop = listRef.current?.scrollTop ?? 0
+    const currentBottom = currentTop + (listRef.current?.clientHeight ?? 0)
+    
+    if (targetTop < currentTop || targetTop > currentBottom - ROW_HEIGHT) {
+      listRef.current?.scrollTo({ 
+        top: targetTop - (listRef.current?.clientHeight ?? 0) / 2 + ROW_HEIGHT / 2, 
+        behavior: 'smooth' 
+      })
+    }
+  }, [currentChannelId, channels, reorderMode])
 
   if (isLoading) {
     return (
@@ -101,28 +137,64 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
   const handleDragLeave = () => {
     setDragOverIndex(null)
   }
+  
+  // Calcular rango visible para virtualización
+  const shouldVirtualize = !reorderMode && channels.length > 50
+  const startIndex = shouldVirtualize ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN) : 0
+  const endIndex = shouldVirtualize ? Math.min(channels.length, Math.ceil((scrollTop + viewportHeight) / ROW_HEIGHT) + OVERSCAN) : channels.length
+  const visibleChannels = shouldVirtualize ? channels.slice(startIndex, endIndex) : channels
 
   return (
-    <div className="space-y-1 select-none" ref={listRef}>
-      {channels.map((channel, index) => {
-        const isDragging = dragIndex === index
-        const isOver = dragOverIndex === index && dragIndex !== index
-        return (
-          <div
-            key={channel.id}
-            data-channel-id={channel.id}
-            draggable={reorderMode}
-            onDragStart={(e) => handleDragStart(e, index)}
-            onDragEnd={handleDragEnd}
-            onDragOver={(e) => handleDragOver(e, index)}
-            onDrop={(e) => handleDrop(e, index)}
-            onDragLeave={handleDragLeave}
-            className={`transition-all duration-150 ${isDragging ? 'opacity-50' : ''} ${isOver ? 'translate-y-1 border-t-2 border-blue-500' : ''} ${reorderMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
-          >
-            <ChannelCard channel={channel} />
-          </div>
-        )
-      })}
+    <div 
+      ref={listRef}
+      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+      className="space-y-1 select-none overflow-y-auto scrollbar-hide"
+      style={{ height: '100%' }}
+    >
+      {shouldVirtualize ? (
+        <div className="space-y-1" style={{ paddingTop: startIndex * ROW_HEIGHT, paddingBottom: (channels.length - endIndex) * ROW_HEIGHT }}>
+          {visibleChannels.map((channel, i) => {
+            const index = startIndex + i
+            const isDragging = dragIndex === index
+            const isOver = dragOverIndex === index && dragIndex !== index
+            return (
+              <div
+                key={channel.id}
+                data-channel-id={channel.id}
+                draggable={reorderMode}
+                onDragStart={(e) => handleDragStart(e, index)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                onDragLeave={handleDragLeave}
+                className={`transition-all duration-150 ${isDragging ? 'opacity-50' : ''} ${isOver ? 'translate-y-1 border-t-2 border-blue-500' : ''} ${reorderMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
+              >
+                <ChannelCard channel={channel} listId={listId || undefined} />
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        channels.map((channel, index) => {
+          const isDragging = dragIndex === index
+          const isOver = dragOverIndex === index && dragIndex !== index
+          return (
+            <div
+              key={channel.id}
+              data-channel-id={channel.id}
+              draggable={reorderMode}
+              onDragStart={(e) => handleDragStart(e, index)}
+              onDragEnd={handleDragEnd}
+              onDragOver={(e) => handleDragOver(e, index)}
+              onDrop={(e) => handleDrop(e, index)}
+              onDragLeave={handleDragLeave}
+              className={`transition-all duration-150 ${isDragging ? 'opacity-50' : ''} ${isOver ? 'translate-y-1 border-t-2 border-blue-500' : ''} ${reorderMode ? 'cursor-grab active:cursor-grabbing' : ''}`}
+            >
+              <ChannelCard channel={channel} listId={listId || undefined} />
+            </div>
+          )
+        })
+      )}
     </div>
   )
 }

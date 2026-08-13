@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, memo } from 'react'
 import { Channel } from '@/lib/types'
 import { usePlayerStore } from '@/store/player-store'
 
@@ -10,24 +10,26 @@ interface ChannelCardProps {
   allCategories?: string[]
 }
 
-export default function ChannelCard({ channel, listId: propListId, allCategories = [] }: ChannelCardProps) {
+const ChannelCard = memo(function ChannelCard({ channel, listId: propListId, allCategories = [] }: ChannelCardProps) {
   const setChannel = usePlayerStore((state) => state.setChannel)
   const currentChannel = usePlayerStore((state) => state.currentChannel)
   const toggleFavorite = usePlayerStore((state) => state.toggleFavorite)
-  const isFavorite = usePlayerStore((state) => state.isFavorite)
   const changeChannelCategory = usePlayerStore((state) => state.changeChannelCategory)
   const moveChannelToList = usePlayerStore((state) => state.moveChannelToList)
   const importedLists = usePlayerStore((state) => state.importedLists)
-  const channelStatus = usePlayerStore((state) => state.channelStatus)
   const renameChannel = usePlayerStore((state) => state.renameChannel)
   const setDetectedStream = usePlayerStore((state) => state.setDetectedStream)
   const clearDetectedStream = usePlayerStore((state) => state.clearDetectedStream)
-  const detectedStreams = usePlayerStore((state) => state.detectedStreams)
   const [detecting, setDetecting] = useState(false)
 
-  // Auto-detectar la lista a la que pertenece este canal
+  // Selectores granulares para evitar re-renders masivos
+  const status = usePlayerStore((state) => state.channelStatus[channel.id])
+  const detectedStream = usePlayerStore((state) => state.detectedStreams[channel.id])
+  const isFavorite = usePlayerStore((state) => state.favorites.includes(channel.id))
+
+  // Auto-detectar la lista a la que pertenece este canal (fallback si no viene propListId)
   const ownerList = importedLists.find(l => l.channels.some(c => c.id === channel.id))
-  const listId = ownerList?.id || propListId
+  const listId = propListId || ownerList?.id
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -35,14 +37,14 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
   const inputRef = useRef<HTMLInputElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  const status = !channel.url ? 'offline' : (channelStatus[channel.id])
-  const statusColor = status === 'online' ? 'bg-green-500'
-    : status === 'offline' ? 'bg-red-500'
-    : status === 'checking' ? 'bg-yellow-500 animate-pulse'
+  const finalStatus = !channel.url ? 'offline' : status
+  const statusColor = finalStatus === 'online' ? 'bg-green-500'
+    : finalStatus === 'offline' ? 'bg-red-500'
+    : finalStatus === 'checking' ? 'bg-yellow-500 animate-pulse'
     : 'bg-gray-600'
 
   const isActive = currentChannel?.id === channel.id
-  const favorite = isFavorite(channel.id)
+  const favorite = isFavorite
 
   const getFallbackLogo = (name: string) => {
     const initial = name?.trim()?.charAt(0)?.toUpperCase() || '?'
@@ -99,10 +101,10 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
           }
         }}
         className={`
-          relative flex items-center gap-3 p-3 pr-20 rounded-lg transition-all duration-200 text-left w-full cursor-pointer
-          ${isActive 
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 scale-[1.02]' 
-            : 'bg-gray-800 hover:bg-gray-700 text-gray-200 hover:scale-[1.02]'
+          relative flex items-center gap-3 p-3 pr-20 rounded-lg transition-colors duration-200 text-left w-full cursor-pointer
+          ${isActive
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/25 scale-[1.02]'
+            : 'bg-gray-200 dark:bg-gray-800 hover:bg-gray-300 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-200'
           }
         `}
       >
@@ -119,7 +121,7 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
               target.src = getFallbackLogo(channel.name)
             }}
           />
-          <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-900 ${statusColor}`}
+          <span className={`absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-gray-100 dark:border-gray-900 ${statusColor}`}
             title={status === 'online' ? 'Señal activa' : status === 'offline' ? 'Sin señal' : status === 'checking' ? 'Verificando...' : ''}
           />
         </div>
@@ -137,13 +139,13 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
                 if (e.key === 'Escape') { setEditName(channel.name); setEditing(false) }
                 e.stopPropagation()
               }}
-              className="w-full px-1 py-0.5 bg-gray-900 border border-blue-500 rounded text-sm text-white font-medium focus:outline-none"
+              className="w-full px-1 py-0.5 bg-gray-100 dark:bg-gray-900 border border-blue-500 rounded text-sm text-gray-900 dark:text-white font-medium focus:outline-none"
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
             <p className="font-medium text-sm truncate">{channel.name}</p>
           )}
-          <p className={`text-xs mt-0.5 ${isActive ? 'text-blue-200' : 'text-gray-400'}`}>
+          <p className={`text-xs mt-0.5 ${isActive ? 'text-blue-200' : 'text-gray-500 dark:text-gray-400'}`}>
             {channel.category}
           </p>
         </div>
@@ -158,9 +160,9 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
           }}
           className={`
             p-1.5 rounded-full transition-colors flex-shrink-0
-            ${favorite 
-              ? 'text-yellow-400 hover:text-yellow-300 bg-gray-900/70' 
-              : 'text-gray-500 hover:text-gray-300 bg-gray-900/70'
+            ${favorite
+              ? 'text-yellow-600 hover:text-yellow-500 bg-gray-500/70 dark:bg-gray-900/70'
+              : 'text-gray-700 dark:text-gray-500 hover:text-gray-300 bg-gray-500/70 dark:bg-gray-900/70'
             }
           `}
           title={favorite ? 'Quitar de favoritos' : 'Agregar a favoritos'}
@@ -178,7 +180,7 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
                 e.stopPropagation()
                 setMenuOpen(!menuOpen)
               }}
-              className="p-1.5 rounded-full text-gray-500 hover:text-gray-300 hover:bg-gray-700/50 transition-colors flex-shrink-0 bg-gray-900/70"
+              className="p-1.5 rounded-full text-gray-700 dark:text-gray-500 hover:text-gray-300 hover:bg-gray-600/50 dark:hover:bg-gray-700/50 transition-colors flex-shrink-0 bg-gray-500/70 dark:bg-gray-900/70"
               title="Más opciones"
             >
               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -190,7 +192,7 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
 
                 {/* Dropdown del menú */}
                 {menuOpen && (
-                  <div className="absolute right-0 top-full mt-1 w-52 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 py-1">
+                  <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg shadow-xl z-50 py-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
@@ -228,9 +230,9 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z" />
                           </svg>
-                          {detecting ? 'Detectando...' : detectedStreams[channel.id] ? 'Redetectar stream' : 'Detectar stream directo'}
+                          {detecting ? 'Detectando...' : detectedStream ? 'Redetectar stream' : 'Detectar stream directo'}
                         </button>
-                        {detectedStreams[channel.id] && (
+                        {detectedStream && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation()
@@ -290,4 +292,6 @@ export default function ChannelCard({ channel, listId: propListId, allCategories
       </div>
     </div>
   )
-}
+})
+
+export default ChannelCard

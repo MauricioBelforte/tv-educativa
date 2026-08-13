@@ -20,7 +20,7 @@ export default function Player() {
   const currentChannel = usePlayerStore((state) => state.currentChannel)
   const isPlaying = usePlayerStore((state) => state.isPlaying)
   const togglePlay = usePlayerStore((state) => state.togglePlay)
-  const detectedStreams = usePlayerStore((state) => state.detectedStreams)
+  const detectedUrl = usePlayerStore((state) => state.detectedStreams[currentChannel?.id || ''])
 
   const destroyHls = useCallback(() => {
     if (hlsRef.current) {
@@ -28,8 +28,6 @@ export default function Player() {
       hlsRef.current = null
     }
   }, [])
-
-  const detectedUrl = currentChannel ? detectedStreams[currentChannel.id] : null
 
   useEffect(() => {
     if (!videoRef.current || !currentChannel) return
@@ -81,14 +79,14 @@ export default function Player() {
 
   if (!currentChannel) {
     return (
-      <div className="flex items-center justify-center h-full bg-gray-900 rounded-lg">
-        <div className="text-center text-gray-400">
+      <div className="flex items-center justify-center h-full bg-gray-100 dark:bg-gray-900 rounded-lg">
+        <div className="text-center text-gray-400 dark:text-gray-400">
           <svg className="w-16 h-16 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <p className="text-lg">Selecciona un canal para comenzar</p>
-          <p className="text-sm mt-2 text-gray-500">Haz clic en cualquier canal de la lista</p>
+          <p className="text-lg text-gray-900 dark:text-white">Selecciona un canal para comenzar</p>
+          <p className="text-sm mt-2 text-gray-500 dark:text-gray-400">Haz clic en cualquier canal de la lista</p>
         </div>
       </div>
     )

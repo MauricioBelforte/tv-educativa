@@ -1,6 +1,6 @@
 # Tareas Actuales - TV Educativa
 
-## Estado General: COMPLETADO
+## Estado General: COMPLETADO (con optimizaciones y testing profesional)
 
 ### Fase 1 - Core (Completada)
 - [x] Setup del proyecto Next.js + Tailwind + TypeScript
@@ -102,3 +102,32 @@
 - [x] Payload de subida deriva activeListNames desde importedLists + activeSources
 - [x] API sync-lists actualizada para activeListNames con compatibilidad hacia atras
 - [x] Documentacion y log actualizados
+
+### Fase 9 - Optimización de Rendimiento y Recursos (Parcialmente Completada)
+- [x] Creacion del modulo DOCUMENTACION/04-Optimizacion con plan-inicial y plan-actual
+- [x] Analisis de cuellos de botella (re-renders masivos, localStorage sync, parser M3U, I/O bloqueante)
+- [x] Implementar selectores granulares de Zustand en ChannelCard y Player (H1, H9) - React.memo + selectores granulares
+- [ ] Implementar batching de persistencia a localStorage con storage-batcher (H2) - NO implementado (archivos protegidos)
+- [ ] Optimizar parser M3U: un solo regex por linea e IDs estables (H3) - NO implementado (m3u-parser.ts protegido)
+- [ ] Migrar I/O de servidor a fs.promises en local-loader y channels (H4) - Selector granular en Player implementado
+- [ ] Eliminar deduplicacion redundante de canales (H5) - NO aplicable a este proyecto
+- [ ] Optimizar filtros en page.tsx y getFavoriteChannels con Sets (H6, H7) - H7 implementado (useCallback), H6 NO implementado
+- [x] Implementar virtualizacion windowed en ChannelList (H8) - Virtualizacion manual implementada
+- [x] Aplicar debounce de busqueda en page.tsx (300ms) - Debounce implementado
+- [x] Ejecutar verificacion basica (build, servidor HTTP 200)
+- [x] Documentacion actualizada en plan-actual
+
+### Fase 10 - Plan de Testing Profesional (Completada)
+- [x] Creacion del modulo DOCUMENTACION/05-PlanTesting con plan-inicial y plan-actual
+- [x] Documentacion completa (requerimientos, analisis, diseño, codigo, checklist, plan de testings, resultados)
+- [x] Instalacion de skills de testing (webapp-testing, javascript-testing-patterns, find-skills)
+- [x] Mejora del plan con best practices de skills (Reconnaissance-Then-Action, selectores descriptivos)
+- [x] Instalacion de Playwright (@playwright/test en package.json)
+- [x] Instalacion de Playwright Python (pip install playwright)
+- [x] Instalacion de browser Chromium (playwright install chromium)
+- [x] Creacion de script de testing automatizado con Playwright
+- [x] Ejecucion exitosa de pruebas automatizadas (BUILD, SERVER, TYPES, PLAYWRIGHT, PAGE_LOAD, PAGE_TITLE, SCREENSHOT)
+- [x] Documentacion de resultados actualizada con todas las pruebas
+- [x] Checklists actualizadas en plan-actual
+- [x] Logs creados (12, 13, 14)
+- [x] DOCUMENTACION/README.md actualizado con Módulos 04 y 05

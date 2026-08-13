@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { Channel } from '@/lib/types'
 import { usePlayerStore } from '@/store/player-store'
 import { parseM3U } from '@/lib/m3u-parser'
@@ -16,6 +16,7 @@ import LoginModal from '@/components/LoginModal'
 export default function Home() {
   const [channels, setChannels] = useState<Channel[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null)
   const [showFavorites, setShowFavorites] = useState(false)
@@ -45,12 +46,24 @@ export default function Home() {
   const authPassword = usePlayerStore((state) => state.authPassword)
   const _initialized = usePlayerStore((state) => state._initialized)
   const login = usePlayerStore((state) => state.login)
-  const logout = usePlayerStore((state) => state.logout)
+  const isFastScanning = usePlayerStore((state) => state.isFastScanning)
+  const isSlowScanning = usePlayerStore((state) => state.isSlowScanning)
+  const fastScanCompleted = usePlayerStore((state) => state.fastScanCompleted)
+  const slowScanCompleted = usePlayerStore((state) => state.slowScanCompleted)
+  const slowScanProgress = usePlayerStore((state) => state.slowScanProgress)
+  const slowScanCompletedLists = usePlayerStore((state) => state.slowScanCompletedLists)
+  const fastScanProgress = usePlayerStore((state) => state.fastScanProgress)
   const [showLogin, setShowLogin] = useState(false)
 
   useEffect(() => {
     if (activeListId) setChannelListOpen(true)
   }, [activeListId])
+  
+  // Debounce de búsqueda (300ms)
+  useEffect(() => {
+    const timer = setTimeout(() => setSearchQuery(searchInput), 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
   const activeChannels = useMemo(() => {
     if (activeListId) {
@@ -147,27 +160,34 @@ export default function Home() {
     checkAllChannels(pending.map(c => ({ id: c.id, url: c.url! })))
   }, [allAvailableChannels, isLoading, checkAllChannels])
 
-  const handleM3UImport = (m3uContent: string, sourceUrl?: string, listName?: string) => {
+  const handleM3UImport = useCallback((m3uContent: string, sourceUrl?: string, listName?: string) => {
     const importedChannels = parseM3U(m3uContent)
     if (importedChannels.length > 0) {
       addImportedList(importedChannels, sourceUrl, false, listName)
     }
-  }
-
-  const handleAppendToList = (listId: string, m3uContent: string) => {
+  }, [addImportedList])
+  
+  const handleAppendToList = useCallback((listId: string, m3uContent: string) => {
     const channels = parseM3U(m3uContent)
     if (channels.length > 0) {
       usePlayerStore.getState().addChannelsToList(listId, channels)
     }
-  }
-
-  const handleReorder = (listId: string, channelId: string, targetChannelId: string) => {
+  }, [])
+  
+  const handleReorder = useCallback((listId: string, channelId: string, targetChannelId: string) => {
     reorderChannels(listId, channelId, targetChannelId)
-  }
-
-  const collapseImportedLists = () => {
+  }, [reorderChannels])
+  
+  const collapseImportedLists = useCallback(() => {
     setImportedListsCollapseKey((value) => value + 1)
-  }
+  }, [])
+  
+  const handleSearchChange = useCallback((value: string) => {
+    setSearchInput(value)
+    if (value === '') {
+      setSearchQuery('')
+    }
+  }, [])
 
   const currentSourceName = useMemo(() => {
     if (showFavorites) return 'Favoritos'
@@ -211,28 +231,28 @@ export default function Home() {
   }, [showFavorites, favoriteChannels, allAvailableChannels])
 
   return (
-    <div className="h-screen bg-gradient-to-b from-slate-900 to-slate-950 text-white flex flex-col">
+    <div className="h-screen bg-gradient-to-b from-gray-100 to-gray-200 dark:from-slate-900 dark:to-slate-950 text-gray-900 dark:text-white flex flex-col">
       {showLogin && <LoginModal onLogin={async (pwd) => {
         const ok = await login(pwd)
         if (ok) setShowLogin(false)
         return ok
       }} />}
-      <Header searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+      <Header searchQuery={searchInput} onSearchChange={handleSearchChange} onLoginClick={() => setShowLogin(true)} />
       <main className="flex-1 w-full min-h-0 flex">
-        <div className="h-full w-96 flex-shrink-0 border-r border-gray-800 flex flex-col">
-          <div className="h-12 flex-shrink-0 bg-slate-900 border-b border-gray-800 flex items-center px-3 gap-1">
+        <div className="h-full w-96 flex-shrink-0 border-r border-gray-300 dark:border-gray-800 flex flex-col">
+          <div className="h-12 flex-shrink-0 bg-gray-100 dark:bg-slate-900 border-b border-gray-300 dark:border-gray-800 flex items-center px-3 gap-1">
             <button
               onClick={() => setChannelListOpen(!channelListOpen)}
-              className="p-2 rounded-lg hover:bg-gray-800 transition-colors"
+              className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
               title={channelListOpen ? 'Cerrar canales' : 'Abrir canales'}
             >
-              <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 text-gray-500 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <button
               onClick={() => { setShowFavorites(!showFavorites); setSelectedCategory(null); collapseImportedLists() }}
-              className={`p-2 rounded-lg transition-colors ${showFavorites ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`p-2 rounded-lg transition-colors ${showFavorites ? 'text-yellow-400 hover:text-yellow-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
               title={showFavorites ? 'Ver lista actual' : 'Ver favoritos'}
             >
               <svg className="w-5 h-5" fill={showFavorites ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
@@ -248,42 +268,42 @@ export default function Home() {
                 importedLists.forEach(l => l.channels.forEach(c => add(c.id, c.url)))
                 fastRecheckAllChannels(all)
               }}
-              className="p-2 rounded-lg text-gray-500 hover:text-blue-400 transition-colors"
+              className={`p-2 rounded-lg transition-colors ${
+                isFastScanning
+                  ? 'animate-spin'
+                  : fastScanCompleted
+                  ? 'text-green-500'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-blue-400'
+              }`}
               title="Escanear todos los canales (rapido)"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
               </svg>
             </button>}
-            <div className="flex-1" />
-            {isAuthenticated ? (
-              <button onClick={logout} className="text-xs text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded">
-                Salir
-              </button>
-            ) : (
-              <button onClick={() => setShowLogin(true)} className="text-xs text-blue-400 hover:text-blue-300 transition-colors px-2 py-1 rounded">
-                Acceso Privado
-              </button>
+            {isFastScanning && (
+              <span className="ml-1 text-xs font-medium text-gray-700 dark:text-gray-300">{fastScanProgress}%</span>
             )}
+            <div className="flex-1" />
           </div>
 
-          <div className="flex-1 min-h-0 relative overflow-hidden bg-slate-900">
+          <div className="flex-1 min-h-0 relative overflow-hidden bg-gray-100 dark:bg-slate-900">
             {channelListOpen && (
-              <div className="absolute inset-0 z-30 bg-slate-900 overflow-y-auto">
+              <div className="absolute inset-0 z-30 bg-gray-100 dark:bg-slate-900 overflow-y-auto">
                 <div className="p-4 space-y-4">
                   {!searchQuery && (
-                    <div className="bg-gray-900/70 rounded-xl p-4 border border-gray-800 shadow-lg space-y-2">
+                    <div className="bg-white/70 dark:bg-gray-900/70 rounded-xl p-4 border border-gray-300 dark:border-gray-800 shadow-lg space-y-2">
                       <button onClick={() => { setShowOnlineOnly(!showOnlineOnly); setSelectedCategory(null); setShowFavorites(false) }}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${showOnlineOnly ? 'bg-green-600 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}>
+                        className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${showOnlineOnly ? 'bg-green-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800'}`}>
                         <div className="flex items-center gap-2">
-                          <span className={`w-3 h-3 rounded-full ${showOnlineOnly ? 'bg-green-400' : 'bg-gray-500'}`} />
+                          <span className={`w-3 h-3 rounded-full ${showOnlineOnly ? 'bg-green-400' : 'bg-gray-500 dark:bg-gray-600'}`} />
                           Solo activos
                         </div>
                       </button>
                       {activeCategories.length > 0 && !showFavorites && (
-                        <><div className="border-t border-gray-700 my-2" />
+                        <><div className="border-t border-gray-300 dark:border-gray-700 my-2" />
                           <button onClick={() => setCategoriesCollapsed((v) => !v)}
-                            className="w-full flex items-center justify-between px-3 mb-1 text-xs text-gray-500 uppercase tracking-wider hover:text-gray-300 transition-colors">
+                            className="w-full flex items-center justify-between px-3 mb-1 text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wider hover:text-gray-700 dark:hover:text-gray-300 transition-colors">
                             <span>Categorias</span>
                             <svg className={`w-3 h-3 transition-transform ${categoriesCollapsed ? '-rotate-90' : 'rotate-0'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
@@ -291,20 +311,20 @@ export default function Home() {
                           </button>
                           {!categoriesCollapsed && activeCategories.map((cat) => (
                             <button key={cat} onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'}`}>{cat}</button>
+                              className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800'}`}>{cat}</button>
                           ))}
                         </>
                       )}
                     </div>
                   )}
-                  <div className="bg-gray-900/70 rounded-xl border border-gray-800 p-4 shadow-lg">
+                  <div className="bg-white/70 dark:bg-gray-900/70 rounded-xl border border-gray-300 dark:border-gray-800 p-4 shadow-lg">
                     <div className="flex items-center justify-between mb-4">
-                      <h2 className="text-lg font-semibold text-white">{currentSourceName}</h2>
+                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{currentSourceName}</h2>
                       <div className="flex items-center gap-2">
-                        <span className="text-sm text-gray-500">{filteredChannels.length} canales</span>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">{filteredChannels.length} canales</span>
                         {activeListId && <button
                           onClick={() => setReorderMode(!reorderMode)}
-                          className={`p-1 rounded-lg transition-colors ${reorderMode ? 'text-blue-400 bg-blue-900/30' : 'text-gray-500 hover:text-gray-300'}`}
+                          className={`p-1 rounded-lg transition-colors ${reorderMode ? 'text-blue-400 bg-blue-900/30' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'}`}
                           title={reorderMode ? 'Desactivar ordenar canales' : 'Activar ordenar canales'}
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -312,8 +332,14 @@ export default function Home() {
                           </svg>
                         </button>}
                         {isAuthenticated && <button
-                          onClick={() => recheckAllChannels(allAvailableChannels.map(c => ({ id: c.id, url: c.url })))}
-                          className="p-1 rounded-lg text-gray-500 hover:text-blue-400 transition-colors"
+                          onClick={() => recheckAllChannels(filteredChannels.map(c => ({ id: c.id, url: c.url })), activeListId || undefined)}
+                          className={`p-1 rounded-lg transition-colors ${
+                            activeListId && slowScanProgress[activeListId]
+                              ? 'animate-spin'
+                              : activeListId && slowScanCompletedLists[activeListId]
+                              ? 'text-green-500'
+                              : 'text-gray-500 dark:text-gray-400 hover:text-blue-400'
+                          }`}
                           title="Escaneo lento sin bloqueo"
                         >
                           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -334,10 +360,10 @@ export default function Home() {
                               const prev = idx > 0 ? idx - 1 : filteredChannels.length - 1
                               if (filteredChannels[prev]) setChannel(filteredChannels[prev])
                             }}
-                            className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 border border-gray-600 flex items-center justify-center transition-colors shadow-lg"
+                            className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors shadow-lg"
                             title="Canal anterior"
                           >
-                            <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-5 h-5 text-gray-500 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
                             </svg>
                           </button>
@@ -351,10 +377,10 @@ export default function Home() {
                               const next = idx < filteredChannels.length - 1 ? idx + 1 : 0
                               if (filteredChannels[next]) setChannel(filteredChannels[next])
                             }}
-                            className="w-10 h-10 rounded-xl bg-gray-700 hover:bg-gray-600 border border-gray-600 flex items-center justify-center transition-colors shadow-lg"
+                            className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors shadow-lg"
                             title="Siguiente canal"
                           >
-                            <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <svg className="w-5 h-5 text-gray-500 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                             </svg>
                           </button>
@@ -367,11 +393,11 @@ export default function Home() {
             )}
             <div className="h-full overflow-y-auto">
               <div className="p-4 space-y-4">
-                <h2 className="text-lg font-semibold text-white">Listas</h2>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Listas</h2>
                 {isAuthenticated ? (
                   <>
                     <M3UImporter onImport={handleM3UImport} onAppendToList={handleAppendToList} lists={importedLists} />
-                    <div className="border-t border-gray-700" />
+                    <div className="border-t border-gray-300 dark:border-gray-700" />
                     <ImportedListsManager collapseTrigger={importedListsCollapseKey} />
                     <div className="pt-3">
                       <button
@@ -414,8 +440,8 @@ export default function Home() {
                     </div>
                   </>
                 ) : (
-                  <div className="bg-gray-900/70 rounded-xl p-6 border border-gray-800">
-                    <p className="text-gray-400 text-sm text-center">
+                  <div className="bg-white/70 dark:bg-gray-900/70 rounded-xl p-6 border border-gray-300 dark:border-gray-800">
+                    <p className="text-gray-500 dark:text-gray-400 text-sm text-center">
                       Inicia sesion para importar y sincronizar tus listas
                     </p>
                     <button
@@ -435,7 +461,7 @@ export default function Home() {
           onClick={() => { if (channelListOpen) setChannelListOpen(false) }}
         >
           <div className="h-full max-w-7xl mx-auto space-y-6 p-4 lg:p-6">
-            <div className="bg-gray-900/70 rounded-xl border border-gray-800 overflow-hidden shadow-lg">
+            <div className="bg-white/70 dark:bg-gray-900/70 rounded-xl border border-gray-300 dark:border-gray-800 overflow-hidden shadow-lg">
               <Player />
             </div>
             <EPGPanel />
@@ -443,12 +469,12 @@ export default function Home() {
             <div className="lg:hidden space-y-3">
               <div className="flex gap-2 overflow-x-auto pb-2">
                 <button onClick={() => { setSelectedCategory(null); setShowFavorites(false); setActiveList(null); setCategoriesCollapsed(true); collapseImportedLists() }}
-                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${!selectedCategory && !showFavorites && !activeListId ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}>Todos</button>
+                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${!selectedCategory && !showFavorites && !activeListId ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}>Todos</button>
                 <button onClick={() => { setShowFavorites(!showFavorites); collapseImportedLists() }}
-                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${showFavorites ? 'bg-yellow-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}>Favoritos</button>
+                  className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${showFavorites ? 'bg-yellow-600 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}>Favoritos</button>
                 {activeCategories.map((cat) => (
                   <button key={cat} onClick={() => setSelectedCategory(selectedCategory === cat ? null : cat)}
-                    className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'}`}>{cat}</button>
+                    className={`px-3 py-1.5 rounded-lg text-sm whitespace-nowrap transition-colors ${selectedCategory === cat ? 'bg-blue-600 text-white' : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'}`}>{cat}</button>
                 ))}
               </div>
             </div>

@@ -22,6 +22,9 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
   const reorderLists = usePlayerStore((state) => state.reorderLists)
   const refreshList = usePlayerStore((state) => state.refreshList)
   const isRefreshing = usePlayerStore((state) => state.isRefreshing)
+  const recheckAllChannels = usePlayerStore((state) => state.recheckAllChannels)
+  const slowScanProgress = usePlayerStore((state) => state.slowScanProgress)
+  const slowScanCompletedLists = usePlayerStore((state) => state.slowScanCompletedLists)
 
   const [editingListId, setEditingListId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -74,7 +77,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
       {importedLists.length > 0 && (
         <div className="border-t border-gray-700 pt-2 mt-2">
           <div className="flex items-center justify-between px-3 mb-1">
-            <p className="text-xs text-gray-500 uppercase tracking-wider">
+            <p className="text-xs text-gray-700 dark:text-gray-500 uppercase tracking-wider">
               Mis Listas ({importedLists.length})
             </p>
             {importedLists.length >= 2 && (
@@ -110,14 +113,14 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
           className={`rounded-lg overflow-hidden transition-opacity ${dragIndex.current === index ? 'opacity-50' : ''}`}
         >
           {/* Header de la lista (carpeta) */}
-          <div className="flex items-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-800 transition-colors rounded-lg cursor-grab active:cursor-grabbing">
+          <div className="flex items-center gap-2 px-3 py-2 bg-gray-200/50 dark:bg-gray-800/50 hover:bg-gray-300 dark:hover:bg-gray-800 transition-colors rounded-lg cursor-grab active:cursor-grabbing">
             {/* Checkbox — activar/desactivar fuente */}
             <input
               type="checkbox"
               checked={isActive}
               onChange={() => toggleSource(list.id)}
               onClick={(e) => e.stopPropagation()}
-              className="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer accent-blue-500 flex-shrink-0"
+              className="w-4 h-4 rounded border-gray-400 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer accent-blue-500 flex-shrink-0"
             />
 
             {/* Flecha — solo expande/colapsa (no despliega) */}
@@ -126,7 +129,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                 e.stopPropagation()
                 setExpandedListId(expandedListId === list.id ? null : list.id)
               }}
-              className="p-1 rounded hover:bg-gray-700 transition-colors"
+              className="p-1 rounded hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
               title={expandedListId === list.id ? 'Colapsar' : 'Expandir'}
             >
               <svg 
@@ -151,19 +154,19 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                     if (e.key === 'Enter') handleSaveRename(list.id)
                     if (e.key === 'Escape') setEditingListId(null)
                   }}
-                  className="flex-1 bg-gray-900 text-white text-sm px-1 py-0.5 rounded border border-blue-500 outline-none"
+                  className="flex-1 bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white text-sm px-1 py-0.5 rounded border border-blue-500 outline-none"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                 />
               ) : (
                 <span className={`text-sm truncate ${
-                  activeListId === list.id ? 'text-blue-400 font-medium' : 'text-gray-300'
+                  activeListId === list.id ? 'text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'
                 }`}>
                   {list.name}
                 </span>
               )}
               
-              <span className="text-xs text-gray-500 ml-auto">
+              <span className="text-xs text-gray-700 dark:text-gray-500 ml-auto">
                 {list.channels.length}
               </span>
             </button>
@@ -174,7 +177,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                 e.stopPropagation()
                 handleStartRename(list)
               }}
-              className="p-1 text-gray-500 hover:text-gray-300 transition-colors"
+              className="p-1 text-gray-700 dark:text-gray-500 hover:text-gray-900 dark:hover:text-gray-300 transition-colors"
               title="Renombrar lista"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -190,7 +193,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                   refreshList(list.id)
                 }}
                 disabled={isRefreshing[list.id]}
-                className="p-1 text-gray-500 hover:text-blue-400 transition-colors disabled:opacity-50"
+                className="p-1 text-gray-700 dark:text-gray-500 hover:text-blue-400 transition-colors disabled:opacity-50"
                 title={list.sourceUrl ? `Refrescar desde URL` : 'Sin URL asociada'}
               >
                 <svg className={`w-3.5 h-3.5 ${isRefreshing[list.id] ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -198,6 +201,26 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                 </svg>
               </button>
             )}
+
+            {/* Botón escaneo lento */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                recheckAllChannels(list.channels.map(c => ({ id: c.id, url: c.url })), list.id)
+              }}
+              className={`p-1 transition-colors ${
+                slowScanProgress[list.id]
+                  ? 'animate-spin text-blue-400'
+                  : slowScanCompletedLists[list.id]
+                  ? 'text-green-500'
+                  : 'text-gray-700 dark:text-gray-500 hover:text-blue-400'
+              }`}
+              title="Escaneo lento sin bloqueo"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
 
             {/* Botón eliminar lista */}
             <button
@@ -207,7 +230,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                   removeList(list.id)
                 }
               }}
-              className="p-1 text-gray-500 hover:text-red-400 transition-colors"
+              className="p-1 text-gray-700 dark:text-gray-500 hover:text-red-400 transition-colors"
               title="Eliminar lista"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -219,7 +242,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
           {/* Timestamp de última actualización */}
           {list.sourceUrl && list.lastRefreshed && expandedListId === list.id && (
             <div className="px-3 pb-1">
-              <p className="text-xs text-gray-600">
+              <p className="text-xs text-gray-700 dark:text-gray-600">
                 Última actualización: {formatLastRefreshed(list.lastRefreshed)}
               </p>
             </div>
@@ -245,7 +268,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                       }
                       if (e.key === 'Escape') setEditingDescId(null)
                     }}
-                    className="w-full bg-gray-900 text-gray-300 text-xs px-2 py-1.5 rounded border border-blue-500 outline-none resize-none"
+                    className="w-full bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-300 text-xs px-2 py-1.5 rounded border border-blue-500 outline-none resize-none"
                     rows={2}
                     placeholder="Agregar descripción..."
                     autoFocus
@@ -261,11 +284,11 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
                   className="group flex items-start gap-1.5 cursor-text"
                 >
                   {list.description ? (
-                    <p className="text-xs text-gray-400 flex-1 leading-relaxed">{list.description}</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-400 flex-1 leading-relaxed">{list.description}</p>
                   ) : (
-                    <p className="text-xs text-gray-600 flex-1 italic">Agregar descripción...</p>
+                    <p className="text-xs text-gray-700 dark:text-gray-600 flex-1 italic">Agregar descripción...</p>
                   )}
-                  <svg className="w-3 h-3 text-gray-600 group-hover:text-gray-400 mt-0.5 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-3 h-3 text-gray-700 dark:text-gray-600 group-hover:text-gray-900 dark:group-hover:text-gray-400 mt-0.5 flex-shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                 </div>
@@ -281,7 +304,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
       <div className={`rounded-lg overflow-hidden`}>
         <div
           onClick={() => setActiveList(null)}
-          className={`flex items-center gap-2 px-3 py-2 bg-gray-800/50 hover:bg-gray-800 transition-colors rounded-lg cursor-pointer ${
+          className={`flex items-center gap-2 px-3 py-2 bg-gray-200/50 dark:bg-gray-800/50 hover:bg-gray-300 dark:hover:bg-gray-800 transition-colors rounded-lg cursor-pointer ${
             activeListId === null ? 'ring-1 ring-blue-500' : ''
           }`}
         >
@@ -290,7 +313,7 @@ export default function ImportedListsManager({ collapseTrigger = 0 }: ImportedLi
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
             </svg>
           </div>
-          <span className={`text-sm flex-1 ${activeListId === null ? 'text-blue-400 font-medium' : 'text-gray-300'}`}>
+          <span className={`text-sm flex-1 ${activeListId === null ? 'text-blue-400 font-medium' : 'text-gray-700 dark:text-gray-300'}`}>
             Canales por Defecto
           </span>
           <span className="text-xs text-gray-500">

@@ -2,6 +2,7 @@
 
 import { create } from 'zustand'
 import { Channel, ImportedList } from '@/lib/types'
+import { batchedPersist } from '@/lib/storage/storage-batcher'
 
 export type ChannelStatus = 'unknown' | 'checking' | 'online' | 'offline'
 
@@ -10,6 +11,7 @@ interface PlayerStore {
   isPlaying: boolean
   favorites: string[]
   isDarkMode: boolean
+  colorMode: 'light' | 'dark' | 'auto'
   importedLists: ImportedList[]
   activeListId: string | null
   activeSources: string[]
@@ -19,8 +21,16 @@ interface PlayerStore {
   authPassword: string
   _initialized: boolean
   detectedStreams: Record<string, string>
+  isFastScanning: boolean
+  isSlowScanning: boolean
+  fastScanCompleted: boolean
+  slowScanCompleted: boolean
+  slowScanProgress: Record<string, boolean>
+  slowScanCompletedLists: Record<string, boolean>
+  fastScanProgress: number
 
   setChannel: (channel: Channel) => void
+  setColorMode: (mode: 'light' | 'dark' | 'auto') => void
   setDetectedStream: (channelId: string, streamUrl: string) => void
   clearDetectedStream: (channelId: string) => void
   togglePlay: () => void
@@ -58,6 +68,9 @@ interface PlayerStore {
   toggleSource: (sourceId: string) => void
   setAllSources: (active: boolean) => void
   
+  // Escaneo por lista
+  recheckAllChannels: (channels: { id: string; url: string }[], listId?: string) => Promise<void>
+  
   // Fase 3: Refresco de listas
   refreshList: (listId: string) => Promise<void>
   refreshAllLists: () => Promise<void>
@@ -66,7 +79,6 @@ interface PlayerStore {
   checkChannelStatus: (channelId: string, url: string) => Promise<void>
   setChannelStatus: (channelId: string, status: ChannelStatus) => void
   checkAllChannels: (channels: { id: string; url: string }[]) => Promise<void>
-  recheckAllChannels: (channels: { id: string; url: string }[]) => Promise<void>
   fastRecheckAllChannels: (channels: { id: string; url: string }[]) => Promise<void>
 }
 
@@ -75,9 +87,8 @@ function generateId(): string {
 }
 
 function saveToStorage(key: string, data: unknown) {
-  if (typeof window !== 'undefined') {
-    localStorage.setItem(key, JSON.stringify(data))
-  }
+  // Optimización Módulo 04 (H2): escritura diferida para reducir I/O sincronico.
+  batchedPersist(key, data)
 }
 
 function loadFromStorage<T>(key: string, fallback: T): T {
@@ -97,6 +108,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   isPlaying: false,
   favorites: [],
   isDarkMode: false,
+  colorMode: 'auto',
   importedLists: [],
   activeListId: null,
   activeSources: [],
@@ -106,6 +118,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   authPassword: '',
   _initialized: false,
   detectedStreams: {},
+  isFastScanning: false,
+  isSlowScanning: false,
+  fastScanCompleted: false,
+  slowScanCompleted: false,
+  slowScanProgress: {},
+  slowScanCompletedLists: {},
+  fastScanProgress: 0,
 
   setChannel: (channel) => set({ currentChannel: channel, isPlaying: true }),
   
@@ -126,13 +145,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     const newFavorites = state.favorites.includes(channelId)
       ? state.favorites.filter(id => id !== channelId)
       : [...state.favorites, channelId]
-    
-    saveToStorage('iptv-favorites', newFavorites)
+
+    batchedPersist('iptv-favorites', newFavorites)
     set({ favorites: newFavorites })
   },
-  
+
   setFavorites: (ids) => {
-    saveToStorage('iptv-favorites', ids)
+    batchedPersist('iptv-favorites', ids)
     set({ favorites: ids })
   },
 
@@ -145,6 +164,7 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     const newMode = !state.isDarkMode
     
     saveToStorage('iptv-dark-mode', newMode)
+    saveToStorage('iptv-color-mode', newMode ? 'dark' : 'light')
     if (typeof window !== 'undefined') {
       if (newMode) {
         document.documentElement.classList.add('dark')
@@ -153,18 +173,57 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       }
     }
     
-    set({ isDarkMode: newMode })
+    set({ isDarkMode: newMode, colorMode: newMode ? 'dark' : 'light' })
+  },
+
+  setColorMode: (mode) => {
+    console.log('setColorMode llamado con:', mode)
+    saveToStorage('iptv-color-mode', mode)
+    
+    if (typeof window !== 'undefined') {
+      let isDark: boolean
+      
+      if (mode === 'auto') {
+        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      } else {
+        isDark = mode === 'dark'
+      }
+      
+      console.log('isDark calculado:', isDark)
+      
+      if (isDark) {
+        document.documentElement.classList.add('dark')
+        console.log('Clase dark agregada')
+      } else {
+        document.documentElement.classList.remove('dark')
+        console.log('Clase dark removida')
+      }
+      
+      set({ isDarkMode: isDark, colorMode: mode })
+      console.log('Estado actualizado:', { isDarkMode: isDark, colorMode: mode })
+    }
   },
   
   initFromStorage: () => {
     if (typeof window !== 'undefined') {
       const favorites = loadFromStorage<string[]>('iptv-favorites', [])
-      const isDarkMode = loadFromStorage<boolean>('iptv-dark-mode', false)
+      const savedColorMode = loadFromStorage<'light' | 'dark' | 'auto'>('iptv-color-mode', 'auto')
       const importedLists = loadFromStorage<ImportedList[]>('iptv-imported-lists', [])
       const activeSources = loadFromStorage<string[]>('iptv-active-sources', [])
       const authPassword = loadFromStorage<string>('iptv-auth-password', '')
+      const fastScanCompleted = loadFromStorage<boolean>('iptv-fast-scan-completed', false)
+      const slowScanCompleted = loadFromStorage<boolean>('iptv-slow-scan-completed', false)
+      const slowScanCompletedLists = loadFromStorage<Record<string, boolean>>('iptv-slow-scan-completed-lists', {})
+      const slowScanProgress = loadFromStorage<Record<string, boolean>>('iptv-slow-scan-progress', {})
       
-      if (isDarkMode) {
+      let isDark: boolean
+      if (savedColorMode === 'auto') {
+        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+      } else {
+        isDark = savedColorMode === 'dark'
+      }
+      
+      if (isDark) {
         document.documentElement.classList.add('dark')
       }
 
@@ -172,7 +231,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
 
       set({
         favorites,
-        isDarkMode,
+        isDarkMode: isDark,
+        colorMode: savedColorMode,
         importedLists,
         activeSources,
         channelStatus,
@@ -180,7 +240,28 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         authPassword,
         isAuthenticated: !!authPassword,
         _initialized: true,
+        isFastScanning: false,
+        isSlowScanning: false,
+        fastScanCompleted,
+        slowScanCompleted,
+        slowScanProgress,
+        slowScanCompletedLists,
       })
+      
+      // Escuchar cambios en el sistema operativo cuando el modo es 'auto'
+      if (savedColorMode === 'auto') {
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+        const handleChange = (e: MediaQueryListEvent) => {
+          const newIsDark = e.matches
+          if (newIsDark) {
+            document.documentElement.classList.add('dark')
+          } else {
+            document.documentElement.classList.remove('dark')
+          }
+          set({ isDarkMode: newIsDark })
+        }
+        mediaQuery.addEventListener('change', handleChange)
+      }
     }
   },
 
@@ -563,7 +644,18 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     await Promise.all(workers)
   },
 
-  recheckAllChannels: async (channels) => {
+  recheckAllChannels: async (channels, listId?: string) => {
+    if (listId) {
+      set({ isSlowScanning: true, slowScanCompleted: false })
+      set(state => ({
+        slowScanProgress: { ...state.slowScanProgress, [listId]: true },
+        slowScanCompletedLists: { ...state.slowScanCompletedLists, [listId]: false }
+      }))
+    } else {
+      set({ isSlowScanning: true, slowScanCompleted: false })
+      saveToStorage('iptv-slow-scan-completed', false)
+    }
+
     const save = (id: string, status: ChannelStatus) => {
       const updated = { ...get().channelStatus, [id]: status }
       saveToStorage('iptv-channel-status', updated)
@@ -593,9 +685,23 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     }
 
     await Promise.all(Array(concurrency).fill(null).map(() => worker()))
+
+    if (listId) {
+      set(state => ({
+        isSlowScanning: false,
+        slowScanProgress: { ...state.slowScanProgress, [listId]: false },
+        slowScanCompletedLists: { ...state.slowScanCompletedLists, [listId]: true }
+      }))
+      saveToStorage('iptv-slow-scan-completed-lists', get().slowScanCompletedLists)
+    } else {
+      set({ isSlowScanning: false, slowScanCompleted: true })
+      saveToStorage('iptv-slow-scan-completed', true)
+    }
   },
 
   fastRecheckAllChannels: async (channels) => {
+    set({ isFastScanning: true, fastScanCompleted: false, fastScanProgress: 0 })
+    saveToStorage('iptv-fast-scan-completed', false)
     const save = (id: string, status: ChannelStatus) => {
       const updated = { ...get().channelStatus, [id]: status }
       saveToStorage('iptv-channel-status', updated)
@@ -603,6 +709,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     }
 
     const queue = channels.filter(ch => ch.url)
+    const totalChannels = queue.length
+    let completedChannels = 0
     const concurrency = 20
 
     const worker = async () => {
@@ -616,9 +724,14 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         } catch {
           save(ch.id, 'offline')
         }
+        completedChannels++
+        const progress = Math.round((completedChannels / totalChannels) * 100)
+        set({ fastScanProgress: progress })
       }
     }
 
     await Promise.all(Array(concurrency).fill(null).map(() => worker()))
+    set({ isFastScanning: false, fastScanCompleted: true, fastScanProgress: 100 })
+    saveToStorage('iptv-fast-scan-completed', true)
   },
 }))

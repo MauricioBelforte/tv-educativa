@@ -185,7 +185,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
     <div>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -194,11 +194,11 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
       </button>
 
       {isOpen && (
-        <div className="mt-2 p-3 bg-gray-800 rounded-lg border border-gray-700 space-y-3">
-          <p className="text-xs text-gray-400">
+        <div className="mt-2 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 space-y-3">
+          <p className="text-xs text-gray-700 dark:text-gray-400">
             Pega una URL de lista M3U (ej: <span className="text-blue-400">https://ejemplo.com/lista.m3u</span>)
           </p>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-gray-700 dark:text-gray-500">
             O pega el contenido <span className="text-green-400">#EXTM3U</span> directamente
           </p>
           
@@ -210,7 +210,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
             }}
             placeholder="https://m3u.cl/lista/AR.m3u"
             rows={2}
-            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
           />
 
           <input
@@ -218,7 +218,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
             value={listName}
             onChange={(e) => setListName(e.target.value)}
             placeholder="Nombre de la lista (opcional)"
-            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
 
           {error && (
@@ -250,7 +250,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
             <button
               onClick={handlePasteContent}
               disabled={!input.trim() || isUrl}
-              className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 disabled:text-gray-500 text-gray-200 text-xs rounded-lg transition-colors"
+              className="flex-1 px-3 py-1.5 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 disabled:text-gray-500 text-gray-900 dark:text-gray-200 text-xs rounded-lg transition-colors"
               title={!isUrl ? 'Pegar como contenido M3U' : ''}
             >
               Pegar contenido
@@ -264,7 +264,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
       {/* Agregar a lista existente */}
       <button
         onClick={() => setBatchOpen(!batchOpen)}
-        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-800 transition-colors"
       >
         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -273,21 +273,21 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
       </button>
 
       {batchOpen && (
-        <div className="mt-2 p-3 bg-gray-800 rounded-lg border border-gray-700 space-y-3">
-          <p className="text-xs text-gray-400">
+        <div className="mt-2 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-700 space-y-3">
+          <p className="text-xs text-gray-700 dark:text-gray-400">
             Pega URLs o contenido M3U para agregar a una lista existente:
           </p>
 
           <div className="flex gap-2 items-center">
             <button
               onClick={() => setBatchNewList(false)}
-              className={`flex-1 px-2 py-1 text-xs rounded-lg transition-colors ${!batchNewList ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+              className={`flex-1 px-2 py-1 text-xs rounded-lg transition-colors ${!batchNewList ? 'bg-blue-600 text-white' : 'bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
             >
               Lista existente
             </button>
             <button
               onClick={() => setBatchNewList(true)}
-              className={`flex-1 px-2 py-1 text-xs rounded-lg transition-colors ${batchNewList ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-400 hover:text-gray-200'}`}
+              className={`flex-1 px-2 py-1 text-xs rounded-lg transition-colors ${batchNewList ? 'bg-blue-600 text-white' : 'bg-gray-300 dark:bg-gray-700 text-gray-900 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}
             >
               Nueva lista
             </button>
@@ -295,7 +295,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
 
           {!batchNewList ? (
             <select
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
               defaultValue=""
             >
               <option value="" disabled>Seleccionar lista...</option>
@@ -309,7 +309,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
               value={batchNewListName}
               onChange={(e) => setBatchNewListName(e.target.value)}
               placeholder="Nombre de la nueva lista"
-              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           )}
 
@@ -318,7 +318,7 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
             onChange={(e) => { setBatchInput(e.target.value); setBatchStatus(null) }}
             placeholder="https://ejemplo.com/canal1.m3u8&#10;https://ejemplo.com/canal2.php&#10;o URLs sueltas (se autogeneran nombres)"
             rows={4}
-            className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded-lg text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
+            className="w-full px-3 py-2 bg-gray-100 dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded-lg text-gray-900 dark:text-gray-200 placeholder-gray-500 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none font-mono"
           />
 
           {batchStatus && (
@@ -328,20 +328,20 @@ export default function M3UImporter({ onImport, onAppendToList, lists }: M3UImpo
           )}
 
           {pendingRename && (
-            <div className="p-3 bg-gray-900 rounded-lg border border-gray-700 space-y-2">
-              <p className="text-xs text-gray-400">Se detectó 1 canal. ¿Querés ponerle un nombre?</p>
+            <div className="p-3 bg-gray-100 dark:bg-gray-900 rounded-lg border border-gray-300 dark:border-gray-700 space-y-2">
+              <p className="text-xs text-gray-700 dark:text-gray-400">Se detectó 1 canal. ¿Querés ponerle un nombre?</p>
               <input
                 type="text"
                 value={renameValue}
                 onChange={(e) => setRenameValue(e.target.value)}
-                className="w-full px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 bg-gray-200 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Nombre del canal"
                 autoFocus
               />
               <div className="flex gap-2">
                 <button
                   onClick={() => setPendingRename(null)}
-                  className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 text-xs rounded-lg transition-colors"
+                  className="flex-1 px-3 py-1.5 bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-200 text-xs rounded-lg transition-colors"
                 >
                   Cancelar
                 </button>
