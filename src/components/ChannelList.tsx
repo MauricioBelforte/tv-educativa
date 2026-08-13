@@ -21,7 +21,7 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
   
   // Estado para virtualización
   const [scrollTop, setScrollTop] = useState(0)
-  const [viewportHeight, setViewportHeight] = useState(0)
+  const [viewportHeight, setViewportHeight] = useState(600) // Altura inicial por defecto
   
   const ROW_HEIGHT = 68 // altura aproximada de cada card
   const OVERSCAN = 5 // canales extra arriba/abajo para scroll suave
