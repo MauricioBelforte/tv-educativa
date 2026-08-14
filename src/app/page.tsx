@@ -27,6 +27,7 @@ export default function Home() {
   const [reorderMode, setReorderMode] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [syncStatus, setSyncStatus] = useState('')
+  const [scrollChannelIntoView, setScrollChannelIntoView] = useState<((channelId: string) => void) | null>(null)
 
   const importedLists = usePlayerStore((state) => state.importedLists)
   const currentChannel = usePlayerStore((state) => state.currentChannel)
@@ -347,7 +348,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="relative">
-                      <ChannelList channels={filteredChannels} isLoading={isLoading && !activeListId} reorderMode={reorderMode} listId={activeListId} onReorder={handleReorder} currentChannelId={currentChannel?.id} />
+                      <ChannelList channels={filteredChannels} isLoading={isLoading && !activeListId} reorderMode={reorderMode} listId={activeListId} onReorder={handleReorder} currentChannelId={currentChannel?.id} scrollChannelIntoView={setScrollChannelIntoView} />
                       <div className="sticky bottom-12 right-0 flex flex-col gap-2 items-end pr-3 pb-3 pointer-events-none z-50">
                         <div className="pointer-events-auto">
                           <button
@@ -356,7 +357,12 @@ export default function Home() {
                                 ? filteredChannels.findIndex(c => c.id === currentChannel.id)
                                 : -1
                               const prev = idx > 0 ? idx - 1 : filteredChannels.length - 1
-                              if (filteredChannels[prev]) setChannel(filteredChannels[prev])
+                              if (filteredChannels[prev]) {
+                                setChannel(filteredChannels[prev])
+                                if (scrollChannelIntoView) {
+                                  scrollChannelIntoView(filteredChannels[prev].id)
+                                }
+                              }
                             }}
                             className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors shadow-lg"
                             title="Canal anterior"
@@ -373,7 +379,12 @@ export default function Home() {
                                 ? filteredChannels.findIndex(c => c.id === currentChannel.id)
                                 : -2
                               const next = idx < filteredChannels.length - 1 ? idx + 1 : 0
-                              if (filteredChannels[next]) setChannel(filteredChannels[next])
+                              if (filteredChannels[next]) {
+                                setChannel(filteredChannels[next])
+                                if (scrollChannelIntoView) {
+                                  scrollChannelIntoView(filteredChannels[next].id)
+                                }
+                              }
                             }}
                             className="w-10 h-10 rounded-xl bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors shadow-lg"
                             title="Siguiente canal"

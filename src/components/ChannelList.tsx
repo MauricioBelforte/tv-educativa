@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, useState, useEffect } from 'react'
+import { useRef, useState, useEffect, useCallback } from 'react'
 import { Channel } from '@/lib/types'
 import ChannelCard from './ChannelCard'
 
@@ -11,9 +11,10 @@ interface ChannelListProps {
   listId?: string | null
   onReorder?: (listId: string, channelId: string, targetChannelId: string) => void
   currentChannelId?: string | null
+  scrollChannelIntoView?: React.Dispatch<React.SetStateAction<((channelId: string) => void) | null>>
 }
 
-export default function ChannelList({ channels, isLoading, reorderMode, listId, onReorder, currentChannelId }: ChannelListProps) {
+export default function ChannelList({ channels, isLoading, reorderMode, listId, onReorder, currentChannelId, scrollChannelIntoView }: ChannelListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const dragNode = useRef<HTMLElement | null>(null)
@@ -49,17 +50,31 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
     const idx = channels.findIndex(c => c.id === currentChannelId)
     if (idx === -1) return
     
-    const targetTop = idx * ROW_HEIGHT
-    const currentTop = listRef.current?.scrollTop ?? 0
-    const currentBottom = currentTop + (listRef.current?.clientHeight ?? 0)
-    
-    if (targetTop < currentTop || targetTop > currentBottom - ROW_HEIGHT) {
-      listRef.current?.scrollTo({ 
-        top: targetTop - (listRef.current?.clientHeight ?? 0) / 2 + ROW_HEIGHT / 2, 
-        behavior: 'smooth' 
-      })
-    }
+    // Esperar un poco para que el DOM se actualice
+    setTimeout(() => {
+      const targetElement = document.querySelector(`[data-channel-id="${currentChannelId}"]`)
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 100)
   }, [currentChannelId, channels, reorderMode])
+
+  // Función expuesta para scroll a un canal específico
+  const scrollToChannel = useCallback((channelId: string) => {
+    setTimeout(() => {
+      const targetElement = document.querySelector(`[data-channel-id="${channelId}"]`)
+      if (targetElement) {
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 50)
+  }, [])
+
+  // Exponer la función al padre cuando se proporciona
+  useEffect(() => {
+    if (scrollChannelIntoView) {
+      scrollChannelIntoView(scrollToChannel)
+    }
+  }, [scrollChannelIntoView, scrollToChannel])
 
   if (isLoading) {
     return (
