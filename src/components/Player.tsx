@@ -14,13 +14,27 @@ function getProxyUrl(url: string, referer?: string): string {
 export default function Player() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [blockPopups, setBlockPopups] = useState(false)
 
   const currentChannel = usePlayerStore((state) => state.currentChannel)
   const isPlaying = usePlayerStore((state) => state.isPlaying)
   const togglePlay = usePlayerStore((state) => state.togglePlay)
   const detectedUrl = usePlayerStore((state) => state.detectedStreams[currentChannel?.id || ''])
+  
+  // Dominios permitidos para iframes (whitelist)
+  const allowedDomains = ['youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com']
+  
+  // Actualizar blockPopups cuando cambia el canal
+  useEffect(() => {
+    if (currentChannel && currentChannel.url.startsWith('http')) {
+      const currentDomain = new URL(currentChannel.url).hostname
+      const isDomainAllowed = allowedDomains.some(domain => currentDomain.includes(domain))
+      setBlockPopups(!isDomainAllowed)
+    }
+  }, [currentChannel?.url])
 
   const destroyHls = useCallback(() => {
     if (hlsRef.current) {
@@ -99,12 +113,27 @@ export default function Player() {
   return (
     <div className="relative bg-black rounded-lg overflow-hidden group" onClick={(e) => e.stopPropagation()}>
       {isIframe ? (
-        <iframe
-          src={iframeUrl}
-          className="w-full aspect-video"
-          allow="autoplay; encrypted-media; fullscreen"
-          allowFullScreen
-        />
+        <div className="relative w-full aspect-video">
+          <iframe
+            ref={iframeRef}
+            src={iframeUrl}
+            className="w-full aspect-video"
+            allow="autoplay; encrypted-media; fullscreen"
+            allowFullScreen
+            referrerPolicy="no-referrer"
+          />
+          {blockPopups && (
+            <div className="absolute inset-0 bg-transparent z-10" onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              // No hacer nada, solo bloquear el click
+            }} title="Protección contra popups activada - Haz doble clic para desactivar temporalmente" onDoubleClick={() => setBlockPopups(false)}>
+              <div className="absolute top-3 left-3 px-2 py-1 bg-blue-500/20 backdrop-blur-sm rounded border border-blue-500/50">
+                <p className="text-blue-500 text-xs font-medium">🔒 Protección popups activa</p>
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
         <>
           <video
