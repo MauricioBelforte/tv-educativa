@@ -59,7 +59,8 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
     setTimeout(() => {
       const targetElement = document.querySelector(`[data-channel-id="${currentChannelId}"]`)
       if (targetElement) {
-        targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        // Usar scrollIntoView con block: 'nearest' para evitar scroll global excesivo
+        targetElement.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
       }
     }, 100)
     
