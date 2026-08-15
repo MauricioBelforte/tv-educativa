@@ -2,69 +2,60 @@
 
 **Fecha:** 2026-08-14
 **Componente:** 06 - Protección contra Popups
+**Estado:** LIMITACIONES TECNICAS IDENTIFICADAS - IMPLEMENTACION ELIMINADA
 
 ## Archivos Involucrados
 
-### Archivos Modificados
-- `src/components/Player.tsx` - Implementación del sistema de protección contra popups
+### Archivos Analizados
+- `src/components/Player.tsx` - Componente del reproductor donde se implementó la protección
 
-## Código Implementado
+## Resultado de las Pruebas
 
-### Estado Local en Player.tsx
-```typescript
-const [blockPopups, setBlockPopups] = useState(false)
-const iframeRef = useRef<HTMLIFrameElement>(null)
+### Métodos Probados y Eliminados
+
+#### 1. Overlay Transparente
+**Descripción:** Capa transparente sobre el iframe para interceptar clicks.
+**Resultado:** ❌ No bloquea popups generados internamente por el iframe.
+**Motivo:** Los popups se generan desde el contexto de JavaScript del iframe, no desde clicks externos.
+
+#### 2. Intercepción de window.open
+**Descripción:** Sobrescribir `window.open` en nuestra aplicación principal.
+**Resultado:** ❌ No bloquea popups del iframe.
+**Motivo:** El iframe tiene su propio contexto de JavaScript y usa su propio `window.open()`.
+
+#### 3. Intercepción de window.parent.open y window.top.open
+**Descripción:** Sobrescribir también `window.parent.open` y `window.top.open`.
+**Resultado:** ❌ No bloquea popups del iframe.
+**Motivo:** Los reproductores inteligentemente usan `window.open()` en su propio contexto para evitar bloqueos.
+
+#### 4. Sandbox con restricciones
+**Descripción:** Usar atributo `sandbox` sin `allow-popups` ni `allow-top-navigation`.
+**Resultado:** ❌ Causa error "Protección Anti-Sandbox" en varios servicios.
+**Motivo:** Algunos proveedores detectan sandbox y bloquean la reproducción.
+
+### Limitaciones Técnicas Identificadas
+
+#### Cross-Origin Restrictions
+- Los navegadores bloquean que una página controle un iframe de otro dominio
+- No podemos acceder al DOM del iframe para bloquear scripts
+- No podemos interceptar eventos internos del iframe
+- Esta es una **limitación de seguridad fundamental** de los navegadores
+
+#### Contextos de JavaScript Separados
+```javascript
+// Nuestra app (localhost:3001)
+window.open = function() { return null } // ❌ Solo bloquea nuestra app
+
+// Iframe del canal (dominio-externo.com)
+window.open("http://publicidad.com") // ✅ Usa SU PROPIO window
 ```
 
-### Whitelist de Dominios
-```typescript
-const allowedDomains = ['youtube.com', 'youtu.be', 'vimeo.com', 'dailymotion.com']
-```
+## Estado Actual del Código
 
-### Lógica de Detección
-```typescript
-useEffect(() => {
-  if (currentChannel && currentChannel.url.startsWith('http')) {
-    const currentDomain = new URL(currentChannel.url).hostname
-    const isDomainAllowed = allowedDomains.some(domain => currentDomain.includes(domain))
-    setBlockPopups(!isDomainAllowed)
-  }
-}, [currentChannel?.url])
-```
+### Player.tsx - Sin Protección
+El código actual de `src/components/Player.tsx` no contiene ningún sistema de protección contra popups.
 
-### Overlay de Protección
-```typescript
-{blockPopups && (
-  <div className="absolute inset-0 bg-transparent z-10" onClick={(e) => {
-    e.stopPropagation()
-    e.preventDefault()
-    // No hacer nada, solo bloquear el click
-  }} title="Protección contra popups activada - Haz doble clic para desactivar temporalmente" onDoubleClick={() => setBlockPopups(false)}>
-    <div className="absolute top-3 left-3 px-2 py-1 bg-blue-500/20 backdrop-blur-sm rounded border border-blue-500/50">
-      <p className="text-blue-500 text-xs font-medium">🔒 Protección popups activa</p>
-    </div>
-  </div>
-)}
-```
-
-## Funciones Clave
-
-### 1. Detección de Dominio
-- Extrae el hostname de la URL del canal
-- Compara contra la whitelist de dominios permitidos
-- Actualiza el estado de protección automáticamente
-
-### 2. Interceptación de Clicks
-- El overlay transparente captura todos los clicks
-- `stopPropagation()` y `preventDefault()` bloquean el evento
-- Evita que el iframe reciba el click y abra popups
-
-### 3. Desactivación Temporal
-- `onDoubleClick` permite al usuario desactivar la protección
-- Útil cuando el usuario necesita interactuar con el reproductor
-- El estado se mantiene mientras el componente esté montado
-
-## Configuración de Iframe
+**Configuración actual del iframe:**
 ```typescript
 <iframe
   ref={iframeRef}
@@ -76,8 +67,38 @@ useEffect(() => {
 />
 ```
 
-**Nota:** No se usa `sandbox` para evitar errores de "Protección Anti-Sandbox"
+### No Implementado
+- ❌ Estado `blockPopups` eliminado
+- ❌ Whitelist de dominios eliminada
+- ❌ Overlay de protección eliminado
+- ❌ Intercepción de window.open eliminada
+- ❌ Configuración sandbox eliminada
+
+## Conclusiones
+
+### Imposibilidad Técnica
+Es **técnicamente imposible** bloquear completamente los popups que se generan desde iframes de terceros debido a:
+
+1. **Políticas de seguridad del navegador:** Cross-origin restrictions
+2. **Contextos de JavaScript separados:** El iframe tiene su propio window
+3. **Limitaciones de alcance:** No podemos controlar scripts internos del sitio externo
+
+### Alternativas No Implementadas
+Las siguientes alternativas fueron evaluadas pero no implementadas por diversos motivos:
+
+1. **Proxy de contenido:** Riesgo de bloqueo de IP, complejidad técnica, costo
+2. **Extensiones del navegador:** No es una solución universal (requiere instalación por usuario)
+3. **Content Security Policy:** No controlamos la respuesta del sitio externo
+
+## Recomendaciones Futuras
+
+Si se requiere alguna funcionalidad relacionada, se sugiere:
+
+1. **Sistema de avisos educativos:** Informar al usuario que algunos canales pueden abrir pestañas
+2. **Sistema de reporte de canales:** Permitir que los usuarios reporten canales problemáticos
+3. **Botón de confirmación:** Hacer que el usuario confirme antes de cargar canales no verificados
+4. **Documentación clara:** Explicar las limitaciones técnicas en la documentación del usuario
 
 ## Logs Relacionados
-- `Logs/21-CREACION-MODULO-06-MEJORAS-TECNICAS-PENDIENTES_2026-08-14_03-45-00.md` - Log de la implementación original (requiere actualización)
-- Se recomienda crear un log específico para este módulo
+- `Logs/22-CREACION-MODULO-06-PROTECCION-POPUPS_2026-08-14_05-50-00.md` - Log de la creación del módulo
+- Se recomienda crear un log específico para documentar la eliminación de la implementación

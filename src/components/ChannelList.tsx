@@ -19,6 +19,7 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const dragNode = useRef<HTMLElement | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const previousChannelId = useRef<string | null>(null)
   
   // Estado para virtualización
   const [scrollTop, setScrollTop] = useState(0)
@@ -44,9 +45,13 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
     return () => resizeObserver.disconnect()
   }, [])
   
-  // ScrollIntoView del canal actual (con virtualización)
+  // ScrollIntoView del canal actual (solo cuando el canal realmente cambia)
   useEffect(() => {
     if (!currentChannelId || reorderMode) return
+    
+    // Solo hacer scroll si el canal realmente cambió
+    if (previousChannelId.current === currentChannelId) return
+    
     const idx = channels.findIndex(c => c.id === currentChannelId)
     if (idx === -1) return
     
@@ -57,6 +62,9 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
         targetElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
     }, 100)
+    
+    // Actualizar el canal anterior
+    previousChannelId.current = currentChannelId
   }, [currentChannelId, channels, reorderMode])
 
   // Función expuesta para scroll a un canal específico
@@ -153,6 +161,10 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
     setDragOverIndex(null)
   }
   
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop)
+  }
+  
   // Calcular rango visible para virtualización
   const shouldVirtualize = !reorderMode && channels.length > 50
   const startIndex = shouldVirtualize ? Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - OVERSCAN) : 0
@@ -162,7 +174,7 @@ export default function ChannelList({ channels, isLoading, reorderMode, listId, 
   return (
     <div 
       ref={listRef}
-      onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
+      onScroll={handleScroll}
       className="space-y-1 select-none overflow-y-auto scrollbar-hide"
       style={{ height: '100%' }}
     >
