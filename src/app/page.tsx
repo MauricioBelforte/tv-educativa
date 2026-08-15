@@ -471,7 +471,7 @@ export default function Home() {
         >
           <div className="h-full max-w-7xl mx-auto space-y-6 p-4 lg:p-6">
             <div className="bg-white/70 dark:bg-gray-900/70 rounded-xl border border-gray-300 dark:border-gray-800 overflow-hidden shadow-lg">
-              <Player />
+              <Player channels={filteredChannels} scrollChannelIntoView={scrollChannelIntoView} />
             </div>
             <EPGPanel />
 

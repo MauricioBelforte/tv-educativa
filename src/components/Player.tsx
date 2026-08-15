@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import Hls from 'hls.js'
 import { usePlayerStore } from '@/store/player-store'
+import { Channel } from '@/lib/types'
 
 function getProxyUrl(url: string, referer?: string): string {
   if (!url.startsWith('http')) return url
@@ -11,16 +12,27 @@ function getProxyUrl(url: string, referer?: string): string {
   return path
 }
 
-export default function Player() {
+interface PlayerProps {
+  channels?: Channel[]
+  scrollChannelIntoView?: ((channelId: string) => void) | null
+}
+
+export default function Player({ channels = [], scrollChannelIntoView }: PlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const hlsRef = useRef<Hls | null>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const playerContainerRef = useRef<HTMLDivElement>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isHovering, setIsHovering] = useState(false)
+  const [isControlsHovering, setIsControlsHovering] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const hideTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const currentChannel = usePlayerStore((state) => state.currentChannel)
   const isPlaying = usePlayerStore((state) => state.isPlaying)
   const togglePlay = usePlayerStore((state) => state.togglePlay)
+  const setChannel = usePlayerStore((state) => state.setChannel)
   const detectedUrl = usePlayerStore((state) => state.detectedStreams[currentChannel?.id || ''])
 
   const destroyHls = useCallback(() => {
@@ -78,6 +90,120 @@ export default function Player() {
     else video.pause()
   }, [isPlaying, currentChannel])
 
+  // Manejo de hover para mostrar/ocultar controles
+  const handleMouseEnter = () => {
+    setIsHovering(true)
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
+    }
+  }
+
+  const handleMouseLeave = () => {
+    setIsHovering(false)
+  }
+
+  const handleMouseMove = () => {
+    setIsHovering(true)
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+    }
+    // Solo ocultar si no estamos sobre los controles
+    if (!isControlsHovering) {
+      hideTimeoutRef.current = setTimeout(() => {
+        setIsHovering(false)
+      }, 2000) // Ocultar después de 2 segundos sin movimiento
+    }
+  }
+
+  const handleControlsMouseEnter = () => {
+    setIsControlsHovering(true)
+    if (hideTimeoutRef.current) {
+      clearTimeout(hideTimeoutRef.current)
+      hideTimeoutRef.current = null
+    }
+  }
+
+  const handleControlsMouseLeave = () => {
+    setIsControlsHovering(false)
+    // Reiniciar el timeout cuando salimos de los controles
+    hideTimeoutRef.current = setTimeout(() => {
+      setIsHovering(false)
+    }, 2000)
+  }
+
+  // Funciones para cambiar de canal
+  const goToPreviousChannel = () => {
+    if (!currentChannel || channels.length === 0) return
+    const idx = channels.findIndex(c => c.id === currentChannel.id)
+    const prev = idx > 0 ? idx - 1 : channels.length - 1
+    if (channels[prev]) {
+      setChannel(channels[prev])
+      if (scrollChannelIntoView) {
+        scrollChannelIntoView(channels[prev].id)
+      }
+    }
+  }
+
+  const goToNextChannel = () => {
+    if (!currentChannel || channels.length === 0) return
+    const idx = channels.findIndex(c => c.id === currentChannel.id)
+    const next = idx < channels.length - 1 ? idx + 1 : 0
+    if (channels[next]) {
+      setChannel(channels[next])
+      if (scrollChannelIntoView) {
+        scrollChannelIntoView(channels[next].id)
+      }
+    }
+  }
+
+  // Toggle fullscreen del contenedor del reproductor
+  const toggleFullscreen = () => {
+    const container = playerContainerRef.current
+    if (!container) return
+
+    if (!isFullscreen) {
+      if (container.requestFullscreen) {
+        container.requestFullscreen()
+      } else if ('webkitRequestFullscreen' in container) {
+        (container as HTMLElement & { webkitRequestFullscreen: () => void }).webkitRequestFullscreen()
+      } else if ('mozRequestFullScreen' in container) {
+        (container as HTMLElement & { mozRequestFullScreen: () => void }).mozRequestFullScreen()
+      } else if ('msRequestFullscreen' in container) {
+        (container as HTMLElement & { msRequestFullscreen: () => void }).msRequestFullscreen()
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen()
+      } else if ('webkitExitFullscreen' in document) {
+        (document as Document & { webkitExitFullscreen: () => void }).webkitExitFullscreen()
+      } else if ('mozCancelFullScreen' in document) {
+        (document as Document & { mozCancelFullScreen: () => void }).mozCancelFullScreen()
+      } else if ('msExitFullscreen' in document) {
+        (document as Document & { msExitFullscreen: () => void }).msExitFullscreen()
+      }
+    }
+  }
+
+  // Detectar cambios de fullscreen
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange)
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange)
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange)
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange)
+    }
+  }, [])
+
   if (!currentChannel) {
     return (
       <div className="flex items-center justify-center h-full bg-gray-100 dark:bg-gray-900 rounded-lg">
@@ -95,10 +221,17 @@ export default function Player() {
 
   const isIframe = !detectedUrl && (currentChannel.playerType === 'iframe' || (!currentChannel.url.includes('.m3u8') && currentChannel.url.startsWith('http')))
 
-  const iframeUrl = currentChannel.url + (currentChannel.url.includes('?') ? '&' : '?') + 'autoplay=1'
+  const iframeUrl = currentChannel.url + (currentChannel.url.includes('?') ? '&' : '?') + 'autoplay=2'
 
   return (
-    <div className="relative bg-black rounded-lg overflow-hidden group" onClick={(e) => e.stopPropagation()}>
+    <div 
+      ref={playerContainerRef}
+      className="relative bg-black rounded-lg overflow-hidden group" 
+      onClick={(e) => e.stopPropagation()}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onMouseMove={handleMouseMove}
+    >
       {isIframe ? (
         <div className="relative w-full aspect-video">
           <iframe
@@ -115,7 +248,6 @@ export default function Player() {
           <video
             ref={videoRef}
             className="w-full aspect-video"
-            controls
             playsInline
             onClick={togglePlay}
           />
@@ -156,6 +288,47 @@ export default function Player() {
             <p className="text-gray-300 text-xs">{currentChannel.category}</p>
           </div>
         </div>
+      </div>
+
+      {/* Controles de cambio de canal flotantes - aparecen al hacer hover */}
+      <div 
+        className={`absolute right-4 top-1/2 -translate-y-1/2 flex flex-col gap-2 transition-opacity duration-300 ${isHovering ? 'opacity-100' : 'opacity-0'}`}
+        onMouseEnter={handleControlsMouseEnter}
+        onMouseLeave={handleControlsMouseLeave}
+      >
+        <button
+          onClick={goToPreviousChannel}
+          className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+        >
+          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          </svg>
+        </button>
+        <button
+          onClick={toggleFullscreen}
+          className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+        >
+          {isFullscreen ? (
+            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          ) : (
+            <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 3h6v6" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 21H3v-6" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 3l-6 6" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21l6-6" />
+            </svg>
+          )}
+        </button>
+        <button
+          onClick={goToNextChannel}
+          className="w-12 h-12 rounded-full bg-black/60 hover:bg-black/80 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all hover:scale-110 shadow-lg"
+        >
+          <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
       </div>
     </div>
   )
