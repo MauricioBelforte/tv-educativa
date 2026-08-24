@@ -10,8 +10,6 @@ interface PlayerStore {
   currentChannel: Channel | null
   isPlaying: boolean
   favorites: string[]
-  isDarkMode: boolean
-  colorMode: 'light' | 'dark' | 'auto'
   importedLists: ImportedList[]
   activeListId: string | null
   activeSources: string[]
@@ -30,14 +28,12 @@ interface PlayerStore {
   fastScanProgress: number
 
   setChannel: (channel: Channel) => void
-  setColorMode: (mode: 'light' | 'dark' | 'auto') => void
   setDetectedStream: (channelId: string, streamUrl: string) => void
   clearDetectedStream: (channelId: string) => void
   togglePlay: () => void
   toggleFavorite: (channelId: string) => void
   setFavorites: (ids: string[]) => void
   isFavorite: (channelId: string) => boolean
-  toggleDarkMode: () => void
   initFromStorage: () => void
   login: (password: string) => Promise<boolean>
   logout: () => void
@@ -107,8 +103,6 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   currentChannel: null,
   isPlaying: false,
   favorites: [],
-  isDarkMode: true,
-  colorMode: 'dark',
   importedLists: [],
   activeListId: null,
   activeSources: [],
@@ -127,87 +121,47 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   fastScanProgress: 0,
 
   setChannel: (channel) => set({ currentChannel: channel, isPlaying: true }),
-  
-  setDetectedStream: (channelId, streamUrl) => set((state) => ({
-    detectedStreams: { ...state.detectedStreams, [channelId]: streamUrl },
-  })),
 
-  clearDetectedStream: (channelId) => set((state) => {
-    const copy = { ...state.detectedStreams }
-    delete copy[channelId]
-    return { detectedStreams: copy }
-  }),
+  setDetectedStream: (channelId, streamUrl) => {
+    set((state) => ({
+      detectedStreams: { ...state.detectedStreams, [channelId]: streamUrl }
+    }))
+  },
 
-  togglePlay: () => set((state) => ({ isPlaying: !state.isPlaying })),
-  
+  clearDetectedStream: (channelId) => {
+    set((state) => {
+      const newDetected = { ...state.detectedStreams }
+      delete newDetected[channelId]
+      return { detectedStreams: newDetected }
+    })
+  },
+
+  togglePlay: () => {
+    set((state) => ({ isPlaying: !state.isPlaying }))
+  },
+
   toggleFavorite: (channelId) => {
-    const state = get()
-    const newFavorites = state.favorites.includes(channelId)
-      ? state.favorites.filter(id => id !== channelId)
-      : [...state.favorites, channelId]
-
-    batchedPersist('iptv-favorites', newFavorites)
-    set({ favorites: newFavorites })
+    set((state) => {
+      const newFavorites = state.favorites.includes(channelId)
+        ? state.favorites.filter(id => id !== channelId)
+        : [...state.favorites, channelId]
+      saveToStorage('iptv-favorites', newFavorites)
+      return { favorites: newFavorites }
+    })
   },
 
   setFavorites: (ids) => {
-    batchedPersist('iptv-favorites', ids)
+    saveToStorage('iptv-favorites', ids)
     set({ favorites: ids })
   },
 
   isFavorite: (channelId) => {
     return get().favorites.includes(channelId)
   },
-  
-  toggleDarkMode: () => {
-    const state = get()
-    const newMode = !state.isDarkMode
-    
-    saveToStorage('iptv-dark-mode', newMode)
-    saveToStorage('iptv-color-mode', newMode ? 'dark' : 'light')
-    if (typeof window !== 'undefined') {
-      if (newMode) {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-    }
-    
-    set({ isDarkMode: newMode, colorMode: newMode ? 'dark' : 'light' })
-  },
 
-  setColorMode: (mode) => {
-    console.log('setColorMode llamado con:', mode)
-    saveToStorage('iptv-color-mode', mode)
-    
-    if (typeof window !== 'undefined') {
-      let isDark: boolean
-      
-      if (mode === 'auto') {
-        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      } else {
-        isDark = mode === 'dark'
-      }
-      
-      console.log('isDark calculado:', isDark)
-      
-      if (isDark) {
-        document.documentElement.classList.add('dark')
-        console.log('Clase dark agregada')
-      } else {
-        document.documentElement.classList.remove('dark')
-        console.log('Clase dark removida')
-      }
-      
-      set({ isDarkMode: isDark, colorMode: mode })
-      console.log('Estado actualizado:', { isDarkMode: isDark, colorMode: mode })
-    }
-  },
-  
   initFromStorage: () => {
     if (typeof window !== 'undefined') {
       const favorites = loadFromStorage<string[]>('iptv-favorites', [])
-      const savedColorMode = loadFromStorage<'light' | 'dark' | 'auto'>('iptv-color-mode', 'dark')
       const importedLists = loadFromStorage<ImportedList[]>('iptv-imported-lists', [])
       const activeSources = loadFromStorage<string[]>('iptv-active-sources', [])
       const authPassword = loadFromStorage<string>('iptv-auth-password', '')
@@ -216,23 +170,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
       const slowScanCompletedLists = loadFromStorage<Record<string, boolean>>('iptv-slow-scan-completed-lists', {})
       const slowScanProgress = loadFromStorage<Record<string, boolean>>('iptv-slow-scan-progress', {})
       
-      let isDark: boolean
-      if (savedColorMode === 'auto') {
-        isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      } else {
-        isDark = savedColorMode === 'dark'
-      }
-      
-      if (isDark) {
-        document.documentElement.classList.add('dark')
-      }
+      // Aplicar dark mode por defecto siempre
+      document.documentElement.classList.add('dark')
 
       const channelStatus = loadFromStorage<Record<string, ChannelStatus>>('iptv-channel-status', {})
 
       set({
         favorites,
-        isDarkMode: isDark,
-        colorMode: savedColorMode,
         importedLists,
         activeSources,
         channelStatus,
@@ -244,494 +188,367 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
         isSlowScanning: false,
         fastScanCompleted,
         slowScanCompleted,
-        slowScanProgress,
         slowScanCompletedLists,
+        slowScanProgress,
+        fastScanProgress: 0
       })
-      
-      // Escuchar cambios en el sistema operativo cuando el modo es 'auto'
-      if (savedColorMode === 'auto') {
-        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-        const handleChange = (e: MediaQueryListEvent) => {
-          const newIsDark = e.matches
-          if (newIsDark) {
-            document.documentElement.classList.add('dark')
-          } else {
-            document.documentElement.classList.remove('dark')
-          }
-          set({ isDarkMode: newIsDark })
-        }
-        mediaQuery.addEventListener('change', handleChange)
-      }
     }
   },
 
   login: async (password) => {
-    try {
-      const res = await fetch(`/api/check-password?p=${encodeURIComponent(password)}`)
-      const data = await res.json()
-      if (data.ok) {
-        saveToStorage('iptv-auth-password', password)
-        set({ isAuthenticated: true, authPassword: password })
-        return true
-      }
-      return false
-    } catch {
-      return false
+    const APP_PASSWORD = process.env.APP_PASSWORD || ''
+    if (password === APP_PASSWORD) {
+      set({ isAuthenticated: true, authPassword: password })
+      saveToStorage('iptv-auth-password', password)
+      return true
     }
+    return false
   },
 
   logout: () => {
+    set({ isAuthenticated: false, authPassword: '' })
     saveToStorage('iptv-auth-password', '')
-    saveToStorage('iptv-imported-lists', [])
-    saveToStorage('iptv-active-sources', [])
-    set({ isAuthenticated: false, authPassword: '', importedLists: [], activeListId: null, activeSources: [] })
   },
 
-  // Gestión de listas importadas
   addImportedList: (channels, sourceUrl, isPrivate, name) => {
-    const state = get()
-    const listCount = state.importedLists.length + 1
-    const finalName = name || (isPrivate ? (sourceUrl || `Lista Privada ${listCount}`) : `Lista ${listCount}`)
+    const listId = generateId()
     const newList: ImportedList = {
-      id: generateId(),
-      name: finalName,
+      id: listId,
+      name: name || (sourceUrl ? `Lista ${new Date().toLocaleDateString()}` : 'Importada'),
       channels,
-      createdAt: new Date().toISOString(),
       sourceUrl,
-      lastRefreshed: sourceUrl ? new Date().toISOString() : undefined,
-      isPrivate,
+      isPrivate: isPrivate || false,
+      description: '',
+      createdAt: new Date().toISOString()
     }
-    
-    const updatedLists = [...state.importedLists, newList]
-    const updatedSources = [...state.activeSources, newList.id]
-    saveToStorage('iptv-imported-lists', updatedLists)
-    saveToStorage('iptv-active-sources', updatedSources)
-    set({ importedLists: updatedLists, activeListId: newList.id, activeSources: updatedSources })
-    
-    return newList.id
+    set((state) => {
+      const newLists = [...state.importedLists, newList]
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists, activeListId: listId }
+    })
+    return listId
   },
 
   renameList: (listId, newName) => {
-    const state = get()
-    const updatedLists = state.importedLists.map(list =>
-      list.id === listId ? { ...list, name: newName } : list
-    )
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ importedLists: updatedLists })
+    set((state) => {
+      const newLists = state.importedLists.map(list =>
+        list.id === listId ? { ...list, name: newName } : list
+      )
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
+    })
   },
 
   setListDescription: (listId, description) => {
-    const state = get()
-    const updatedLists = state.importedLists.map(list =>
-      list.id === listId ? { ...list, description } : list
-    )
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ importedLists: updatedLists })
+    set((state) => {
+      const newLists = state.importedLists.map(list =>
+        list.id === listId ? { ...list, description } : list
+      )
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
+    })
   },
 
   removeList: (listId) => {
-    const state = get()
-    const updatedLists = state.importedLists.filter(list => list.id !== listId)
-    const updatedSources = state.activeSources.filter(id => id !== listId)
-    saveToStorage('iptv-imported-lists', updatedLists)
-    saveToStorage('iptv-active-sources', updatedSources)
-    set({ 
-      importedLists: updatedLists,
-      activeSources: updatedSources,
-      activeListId: state.activeListId === listId ? null : state.activeListId,
-      currentChannel: state.currentChannel?.id.startsWith(listId) ? null : state.currentChannel,
+    set((state) => {
+      const newLists = state.importedLists.filter(list => list.id !== listId)
+      const newActiveId = state.activeListId === listId 
+        ? (newLists.length > 0 ? newLists[0].id : null)
+        : state.activeListId
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists, activeListId: newActiveId }
     })
   },
 
   removeChannelFromList: (listId, channelId) => {
-    const state = get()
-    const updatedLists = state.importedLists.map(list => {
-      if (list.id !== listId) return list
-      return {
-        ...list,
-        channels: list.channels.filter(ch => ch.id !== channelId),
-      }
-    })
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ 
-      importedLists: updatedLists,
-      currentChannel: state.currentChannel?.id === channelId ? null : state.currentChannel,
+    set((state) => {
+      const newLists = state.importedLists.map(list =>
+        list.id === listId
+          ? { ...list, channels: list.channels.filter(c => c.id !== channelId) }
+          : list
+      )
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
     })
   },
 
   addChannelsToList: (listId, channels) => {
-    const state = get()
-    const updatedLists = state.importedLists.map(list => {
-      if (list.id !== listId) return list
-      const existing = new Set(list.channels.map(c => c.id))
-      const newChannels = channels.filter(c => !existing.has(c.id))
-      return { ...list, channels: [...list.channels, ...newChannels] }
+    set((state) => {
+      const newLists = state.importedLists.map(list =>
+        list.id === listId
+          ? { ...list, channels: [...list.channels, ...channels] }
+          : list
+      )
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
     })
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ importedLists: updatedLists })
   },
 
-  setActiveList: (listId) => set({ activeListId: listId }),
+  setActiveList: (listId) => {
+    set({ activeListId: listId })
+  },
 
   getListById: (listId) => {
     return get().importedLists.find(list => list.id === listId)
   },
 
   reorderLists: (fromIndex, toIndex) => {
-    const state = get()
-    const updated = [...state.importedLists]
-    const [moved] = updated.splice(fromIndex, 1)
-    updated.splice(toIndex, 0, moved)
-    saveToStorage('iptv-imported-lists', updated)
-    set({ importedLists: updated })
+    set((state) => {
+      const newLists = [...state.importedLists]
+      const [removed] = newLists.splice(fromIndex, 1)
+      newLists.splice(toIndex, 0, removed)
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
+    })
   },
 
   replacePrivateLists: (lists) => {
-    const state = get()
-
-    const seen = new Map<string, { name: string; channels: Channel[] }>()
-    for (const l of lists) {
-      seen.set(l.name, l)
-    }
-    const unique = Array.from(seen.values())
-
-    const syncNames = new Set(unique.map(l => l.name))
-
-    const keep = state.importedLists.filter(l => !syncNames.has(l.name))
-
-    const newLists: ImportedList[] = unique.map((list) => ({
-      id: `sync-${list.name.replace(/[^a-zA-Z0-9]/g, '_')}`,
-      name: list.name,
-      channels: list.channels,
-      createdAt: new Date().toISOString(),
-      sourceUrl: list.name,
-      lastRefreshed: new Date().toISOString(),
-      isPrivate: true,
-    }))
-
-    const updatedLists = [...keep, ...newLists]
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ importedLists: updatedLists, activeListId: newLists.length > 0 ? newLists[0].id : state.activeListId })
+    set((state) => {
+      const newLists = state.importedLists.filter(list => !list.isPrivate)
+      const newPrivateLists = lists.map((list, index) => ({
+        id: `private-${Date.now()}-${index}`,
+        name: list.name,
+        channels: list.channels,
+        sourceUrl: undefined,
+        isPrivate: true,
+        description: '',
+        createdAt: new Date().toISOString()
+      }))
+      const finalLists = [...newLists, ...newPrivateLists]
+      saveToStorage('iptv-imported-lists', finalLists)
+      return { importedLists: finalLists }
+    })
   },
 
   replaceActiveSourcesByName: (names) => {
-    const state = get()
-    const ids = state.importedLists
-      .filter(l => names.includes(l.name))
-      .map(l => l.id)
-    saveToStorage('iptv-active-sources', ids)
-    set({ activeSources: ids })
+    set((state) => {
+      const newActiveSources = state.importedLists
+        .filter(list => names.includes(list.name))
+        .map(list => list.id)
+      saveToStorage('iptv-active-sources', newActiveSources)
+      return { activeSources: newActiveSources }
+    })
   },
 
-  // Mover canal de una lista a otra
   moveChannelToList: (fromListId, channelId, toListId) => {
-    const state = get()
-    let movedChannel: Channel | null = null
-    
-    const updatedLists = state.importedLists.map(list => {
-      if (list.id === fromListId) {
-        const channel = list.channels.find(ch => ch.id === channelId)
-        if (channel) movedChannel = { ...channel }
-        return {
-          ...list,
-          channels: list.channels.filter(ch => ch.id !== channelId),
+    set((state) => {
+      const fromList = state.importedLists.find(l => l.id === fromListId)
+      const toList = state.importedLists.find(l => l.id === toListId)
+      if (!fromList || !toList) return state
+
+      const channel = fromList.channels.find(c => c.id === channelId)
+      if (!channel) return state
+
+      const newLists = state.importedLists.map(list => {
+        if (list.id === fromListId) {
+          return { ...list, channels: list.channels.filter(c => c.id !== channelId) }
         }
-      }
-      return list
-    })
-    
-    if (movedChannel) {
-      const finalLists = updatedLists.map(list => {
         if (list.id === toListId) {
-          return {
-            ...list,
-            channels: [...list.channels, movedChannel!],
-          }
+          return { ...list, channels: [...list.channels, channel] }
         }
         return list
       })
-      
-      saveToStorage('iptv-imported-lists', finalLists)
-      set({ importedLists: finalLists })
-    }
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
+    })
   },
 
-  // Cambiar categoría de un canal dentro de su lista
   changeChannelCategory: (listId, channelId, newCategory) => {
-    const state = get()
-    const updatedLists = state.importedLists.map(list => {
-      if (list.id !== listId) return list
-      return {
-        ...list,
-        channels: list.channels.map(ch => 
-          ch.id === channelId ? { ...ch, category: newCategory } : ch
-        ),
-      }
+    set((state) => {
+      const newLists = state.importedLists.map(list =>
+        list.id === listId
+          ? {
+              ...list,
+              channels: list.channels.map(c =>
+                c.id === channelId ? { ...c, category: newCategory } : c
+              )
+            }
+          : list
+      )
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
     })
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ importedLists: updatedLists })
-  },
-
-  reorderChannels: (listId, channelId, targetChannelId) => {
-    const state = get()
-    const updatedLists = state.importedLists.map(list => {
-      if (list.id !== listId) return list
-      const channels = [...list.channels]
-      const fromIdx = channels.findIndex(c => c.id === channelId)
-      const toIdx = channels.findIndex(c => c.id === targetChannelId)
-      if (fromIdx === -1 || toIdx === -1) return list
-      const [moved] = channels.splice(fromIdx, 1)
-      const adjustedTo = fromIdx < toIdx ? toIdx - 1 : toIdx
-      channels.splice(adjustedTo, 0, moved)
-      return { ...list, channels }
-    })
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ importedLists: updatedLists })
   },
 
   renameChannel: (listId, channelId, newName) => {
-    const state = get()
-    const updatedLists = state.importedLists.map(list => {
-      if (list.id !== listId) return list
-      return {
-        ...list,
-        channels: list.channels.map(ch =>
-          ch.id === channelId ? { ...ch, name: newName } : ch
-        ),
-      }
-    })
-    saveToStorage('iptv-imported-lists', updatedLists)
-    set({ importedLists: updatedLists,
-      currentChannel: state.currentChannel?.id === channelId
-        ? { ...state.currentChannel, name: newName }
-        : state.currentChannel,
+    set((state) => {
+      const newLists = state.importedLists.map(list =>
+        list.id === listId
+          ? {
+              ...list,
+              channels: list.channels.map(c =>
+                c.id === channelId ? { ...c, name: newName } : c
+              )
+            }
+          : list
+      )
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
     })
   },
 
-  // Obtener canales favoritos de todas las listas
+  reorderChannels: (listId, channelId, targetChannelId) => {
+    set((state) => {
+      const newLists = state.importedLists.map(list => {
+        if (list.id !== listId) return list
+        
+        const channels = [...list.channels]
+        const sourceIndex = channels.findIndex(c => c.id === channelId)
+        const targetIndex = channels.findIndex(c => c.id === targetChannelId)
+        
+        if (sourceIndex === -1 || targetIndex === -1) return list
+        
+        const [removed] = channels.splice(sourceIndex, 1)
+        channels.splice(targetIndex, 0, removed)
+        
+        return { ...list, channels }
+      })
+      saveToStorage('iptv-imported-lists', newLists)
+      return { importedLists: newLists }
+    })
+  },
+
   getFavoriteChannels: () => {
     const state = get()
-    const allChannels: Channel[] = []
-    
-    state.importedLists.forEach(list => {
-      list.channels.forEach(ch => {
-        if (state.favorites.includes(ch.id) && !allChannels.find(c => c.id === ch.id)) {
-          allChannels.push(ch)
-        }
-      })
-    })
-    
-    return allChannels
+    const allChannels = [
+      ...state.importedLists.flatMap(list => list.channels),
+    ]
+    return allChannels.filter(channel => state.favorites.includes(channel.id))
   },
 
-  // Fase 3: Múltiples fuentes
   toggleSource: (sourceId) => {
-    const state = get()
-    const updated = state.activeSources.includes(sourceId)
-      ? state.activeSources.filter(id => id !== sourceId)
-      : [...state.activeSources, sourceId]
-    saveToStorage('iptv-active-sources', updated)
-    set({ activeSources: updated })
+    set((state) => {
+      const newActiveSources = state.activeSources.includes(sourceId)
+        ? state.activeSources.filter(id => id !== sourceId)
+        : [...state.activeSources, sourceId]
+      saveToStorage('iptv-active-sources', newActiveSources)
+      return { activeSources: newActiveSources }
+    })
   },
 
   setAllSources: (active) => {
-    const state = get()
-    const updated = active
-      ? state.importedLists.map(l => l.id)
-      : []
-    saveToStorage('iptv-active-sources', updated)
-    set({ activeSources: updated })
+    set((state) => {
+      const newActiveSources = active
+        ? state.importedLists.map(list => list.id)
+        : []
+      saveToStorage('iptv-active-sources', newActiveSources)
+      return { activeSources: newActiveSources }
+    })
   },
 
-  // Fase 3: Refresco de listas
+  recheckAllChannels: async (channels, listId) => {
+    set({ isRefreshing: { ...get().isRefreshing, [listId || 'default']: true } })
+    
+    try {
+      const APP_PASSWORD = process.env.APP_PASSWORD || ''
+      const checks = channels.map(channel =>
+        fetch(`/api/check-stream?url=${encodeURIComponent(channel.url)}&password=${APP_PASSWORD}`)
+          .then(res => res.json())
+          .then(data => ({ id: channel.id, online: data.online }))
+      )
+      
+      const results = await Promise.all(checks)
+      
+      set((state) => {
+        const newStatus: Record<string, ChannelStatus> = { ...state.channelStatus }
+        results.forEach(({ id, online }) => {
+          newStatus[id] = online ? 'online' : 'offline'
+        })
+        saveToStorage('iptv-channel-status', newStatus)
+        return { channelStatus: newStatus }
+      })
+    } finally {
+      set((state) => {
+        const newRefreshing = { ...state.isRefreshing }
+        delete newRefreshing[listId || 'default']
+        return { isRefreshing: newRefreshing }
+      })
+    }
+  },
+
   refreshList: async (listId) => {
-    const state = get()
-    const list = state.importedLists.find(l => l.id === listId)
+    const list = get().importedLists.find(l => l.id === listId)
     if (!list?.sourceUrl) return
 
-    set({ isRefreshing: { ...state.isRefreshing, [listId]: true } })
+    set((state) => ({ isRefreshing: { ...state.isRefreshing, [listId]: true } }))
 
     try {
-      const res = await fetch(`/api/refresh-list?id=${encodeURIComponent(listId)}&url=${encodeURIComponent(list.sourceUrl)}`)
-      const result: { success: boolean; channels: Channel[]; error?: string } = await res.json()
-
-      if (result.success) {
-        const updatedLists = state.importedLists.map(l =>
-          l.id === listId
-            ? { ...l, channels: result.channels, lastRefreshed: new Date().toISOString() }
-            : l
+      const response = await fetch(list.sourceUrl)
+      const content = await response.text()
+      
+      // Re-parsear el contenido M3U
+      const { parseM3U } = await import('@/lib/m3u-parser')
+      const newChannels = parseM3U(content)
+      
+      set((state) => {
+        const newLists = state.importedLists.map(l =>
+          l.id === listId ? { ...l, channels: newChannels } : l
         )
-        saveToStorage('iptv-imported-lists', updatedLists)
-        set({ importedLists: updatedLists, isRefreshing: { ...get().isRefreshing, [listId]: false } })
-      } else {
-        set({ isRefreshing: { ...get().isRefreshing, [listId]: false } })
-        console.error('Refresh failed:', result.error)
-      }
-    } catch (error) {
-      set({ isRefreshing: { ...get().isRefreshing, [listId]: false } })
-      console.error('Refresh error:', error)
+        saveToStorage('iptv-imported-lists', newLists)
+        return { importedLists: newLists }
+      })
+    } finally {
+      set((state) => {
+        const newRefreshing = { ...state.isRefreshing }
+        delete newRefreshing[listId]
+        return { isRefreshing: newRefreshing }
+      })
     }
   },
 
   refreshAllLists: async () => {
-    const state = get()
-    const refreshable = state.importedLists.filter(l => l.sourceUrl)
-    await Promise.all(refreshable.map(l => get().refreshList(l.id)))
-  },
-
-  setChannelStatus: (channelId, status) => {
-    const updated = { ...get().channelStatus, [channelId]: status }
-    saveToStorage('iptv-channel-status', updated)
-    set({ channelStatus: updated })
+    const lists = get().importedLists.filter(l => l.sourceUrl)
+    await Promise.all(lists.map(list => get().refreshList(list.id)))
   },
 
   checkChannelStatus: async (channelId, url) => {
-    const state = get()
-    if (state.channelStatus[channelId] === 'checking') return
-    const checking = { ...state.channelStatus, [channelId]: 'checking' as ChannelStatus }
-    saveToStorage('iptv-channel-status', checking)
-    set({ channelStatus: checking })
+    set((state) => ({
+      channelStatus: { ...state.channelStatus, [channelId]: 'checking' }
+    }))
 
     try {
-      const res = await fetch(`/api/check-stream?url=${encodeURIComponent(url)}`)
-      const data = await res.json()
-      const result = { ...get().channelStatus, [channelId]: data.online ? 'online' as ChannelStatus : 'offline' as ChannelStatus }
-      saveToStorage('iptv-channel-status', result)
-      set({ channelStatus: result })
+      const APP_PASSWORD = process.env.APP_PASSWORD || ''
+      const response = await fetch(`/api/check-stream?url=${encodeURIComponent(url)}&password=${APP_PASSWORD}`)
+      const data = await response.json()
+      
+      set((state) => {
+        const newStatus: Record<string, ChannelStatus> = { ...state.channelStatus, [channelId]: data.online ? 'online' : 'offline' }
+        saveToStorage('iptv-channel-status', newStatus)
+        return { channelStatus: newStatus }
+      })
     } catch {
-      const failed = { ...get().channelStatus, [channelId]: 'offline' as ChannelStatus }
-      saveToStorage('iptv-channel-status', failed)
-      set({ channelStatus: failed })
+      set((state) => {
+        const newStatus: Record<string, ChannelStatus> = { ...state.channelStatus, [channelId]: 'offline' }
+        saveToStorage('iptv-channel-status', newStatus)
+        return { channelStatus: newStatus }
+      })
     }
+  },
+
+  setChannelStatus: (channelId, status) => {
+    set((state) => {
+      const newStatus = { ...state.channelStatus, [channelId]: status }
+      saveToStorage('iptv-channel-status', newStatus)
+      return { channelStatus: newStatus }
+    })
   },
 
   checkAllChannels: async (channels) => {
-    const unchecked = channels.filter(ch => ch.url && !get().channelStatus[ch.id])
-    if (unchecked.length === 0) return
-
-    const concurrency = 2
-    const queue = [...unchecked]
-
-    const save = (id: string, status: ChannelStatus) => {
-      const updated = { ...get().channelStatus, [id]: status }
-      saveToStorage('iptv-channel-status', updated)
-      set({ channelStatus: updated })
-    }
-
-    const worker = async () => {
-      while (queue.length > 0) {
-        const ch = queue.shift()!
-        const state = get()
-        if (state.channelStatus[ch.id] === 'checking') continue
-        save(ch.id, 'checking')
-
-        try {
-          const controller = new AbortController()
-          const timeout = setTimeout(() => controller.abort(), 15000)
-          const res = await fetch(`/api/check-stream?url=${encodeURIComponent(ch.url)}`, {
-            signal: controller.signal
-          })
-          clearTimeout(timeout)
-          const data = await res.json()
-          save(ch.id, data.online ? 'online' : 'offline')
-        } catch {
-          save(ch.id, 'offline')
-        }
-      }
-    }
-
-    const workers = Array(concurrency).fill(null).map(() => worker())
-    await Promise.all(workers)
-  },
-
-  recheckAllChannels: async (channels, listId?: string) => {
-    if (listId) {
-      set({ isSlowScanning: true, slowScanCompleted: false })
-      set(state => ({
-        slowScanProgress: { ...state.slowScanProgress, [listId]: true },
-        slowScanCompletedLists: { ...state.slowScanCompletedLists, [listId]: false }
-      }))
-    } else {
-      set({ isSlowScanning: true, slowScanCompleted: false })
-      saveToStorage('iptv-slow-scan-completed', false)
-    }
-
-    const save = (id: string, status: ChannelStatus) => {
-      const updated = { ...get().channelStatus, [id]: status }
-      saveToStorage('iptv-channel-status', updated)
-      set({ channelStatus: updated })
-    }
-
-    const queue = channels.filter(ch => ch.url)
-    const concurrency = 2
-
-    const worker = async () => {
-      while (queue.length > 0) {
-        const ch = queue.shift()!
-        save(ch.id, 'checking')
-        try {
-          const controller = new AbortController()
-          const timeout = setTimeout(() => controller.abort(), 15000)
-          const res = await fetch(`/api/check-stream?url=${encodeURIComponent(ch.url)}`, {
-            signal: controller.signal
-          })
-          clearTimeout(timeout)
-          const data = await res.json()
-          save(ch.id, data.online ? 'online' : 'offline')
-        } catch {
-          save(ch.id, 'offline')
-        }
-      }
-    }
-
-    await Promise.all(Array(concurrency).fill(null).map(() => worker()))
-
-    if (listId) {
-      set(state => ({
-        isSlowScanning: false,
-        slowScanProgress: { ...state.slowScanProgress, [listId]: false },
-        slowScanCompletedLists: { ...state.slowScanCompletedLists, [listId]: true }
-      }))
-      saveToStorage('iptv-slow-scan-completed-lists', get().slowScanCompletedLists)
-    } else {
-      set({ isSlowScanning: false, slowScanCompleted: true })
-      saveToStorage('iptv-slow-scan-completed', true)
-    }
+    const { checkChannelStatus } = get()
+    await Promise.all(channels.map(c => checkChannelStatus(c.id, c.url)))
   },
 
   fastRecheckAllChannels: async (channels) => {
-    set({ isFastScanning: true, fastScanCompleted: false, fastScanProgress: 0 })
-    saveToStorage('iptv-fast-scan-completed', false)
-    const save = (id: string, status: ChannelStatus) => {
-      const updated = { ...get().channelStatus, [id]: status }
-      saveToStorage('iptv-channel-status', updated)
-      set({ channelStatus: updated })
+    set({ isFastScanning: true, fastScanProgress: 0 })
+    
+    const total = channels.length
+    for (let i = 0; i < total; i++) {
+      const channel = channels[i]
+      await get().checkChannelStatus(channel.id, channel.url)
+      set({ fastScanProgress: Math.round(((i + 1) / total) * 100) })
     }
-
-    const queue = channels.filter(ch => ch.url)
-    const totalChannels = queue.length
-    let completedChannels = 0
-    const concurrency = 20
-
-    const worker = async () => {
-      while (queue.length > 0) {
-        const ch = queue.shift()!
-        save(ch.id, 'checking')
-        try {
-          const res = await fetch(`/api/check-stream?deep=true&url=${encodeURIComponent(ch.url)}`)
-          const data = await res.json()
-          save(ch.id, data.online ? 'online' : 'offline')
-        } catch {
-          save(ch.id, 'offline')
-        }
-        completedChannels++
-        const progress = Math.round((completedChannels / totalChannels) * 100)
-        set({ fastScanProgress: progress })
-      }
-    }
-
-    await Promise.all(Array(concurrency).fill(null).map(() => worker()))
-    set({ isFastScanning: false, fastScanCompleted: true, fastScanProgress: 100 })
+    
+    set({ isFastScanning: false, fastScanCompleted: true })
     saveToStorage('iptv-fast-scan-completed', true)
-  },
+  }
 }))
