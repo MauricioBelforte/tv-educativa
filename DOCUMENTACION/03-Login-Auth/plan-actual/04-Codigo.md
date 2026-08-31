@@ -17,8 +17,9 @@ export async function GET(request: NextRequest) {
 ### src/store/player-store.ts (fragmentos relevantes)
 - `isAuthenticated: boolean` y `authPassword: string` en el estado
 - `initFromStorage`: carga `authPassword` desde localStorage y establece `isAuthenticated`
-- `login(password)`: POST a /api/check-password, si ok guarda en localStorage y setea estado
+- `login(password)`: GET a /api/check-password?p=XXX, si ok guarda en localStorage y setea estado. ⚠️ La validacion se hace SIEMPRE en el servidor porque `process.env.APP_PASSWORD` no esta disponible en el cliente (variables sin prefijo NEXT_PUBLIC_ solo existen server-side).
 - `logout()`: limpia localStorage y estado, elimina listas importadas
+- Nota: `/api/check-stream` NO requiere password; no se envia credencial al verificar señal
 
 ### src/app/page.tsx (fragmentos relevantes)
 - Renderiza `LoginModal` cuando `showLogin` es true

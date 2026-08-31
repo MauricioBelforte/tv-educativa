@@ -196,22 +196,13 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
   },
 
   login: async (password) => {
-    // FIX: la validacion se hace en el SERVIDOR (/api/check-password) porque
-    // process.env.APP_PASSWORD NO esta disponible en el cliente (variables sin
-    // prefijo NEXT_PUBLIC_ solo existen server-side). Leerla aca hacia que el
-    // login fallara siempre (APP_PASSWORD = '' en el navegador).
-    try {
-      const res = await fetch(`/api/check-password?p=${encodeURIComponent(password)}`)
-      const data = await res.json()
-      if (data.ok) {
-        saveToStorage('iptv-auth-password', password)
-        set({ isAuthenticated: true, authPassword: password })
-        return true
-      }
-      return false
-    } catch {
-      return false
+    const APP_PASSWORD = process.env.APP_PASSWORD || ''
+    if (password === APP_PASSWORD) {
+      set({ isAuthenticated: true, authPassword: password })
+      saveToStorage('iptv-auth-password', password)
+      return true
     }
+    return false
   },
 
   logout: () => {
@@ -449,10 +440,9 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     set({ isRefreshing: { ...get().isRefreshing, [listId || 'default']: true } })
     
     try {
-      // /api/check-stream no requiere password (solo private-lists y sync-lists
-      // estan protegidas), por eso no se envia credencial aca.
+      const APP_PASSWORD = process.env.APP_PASSWORD || ''
       const checks = channels.map(channel =>
-        fetch(`/api/check-stream?url=${encodeURIComponent(channel.url)}`)
+        fetch(`/api/check-stream?url=${encodeURIComponent(channel.url)}&password=${APP_PASSWORD}`)
           .then(res => res.json())
           .then(data => ({ id: channel.id, online: data.online }))
       )
@@ -517,7 +507,8 @@ export const usePlayerStore = create<PlayerStore>((set, get) => ({
     }))
 
     try {
-      const response = await fetch(`/api/check-stream?url=${encodeURIComponent(url)}`)
+      const APP_PASSWORD = process.env.APP_PASSWORD || ''
+      const response = await fetch(`/api/check-stream?url=${encodeURIComponent(url)}&password=${APP_PASSWORD}`)
       const data = await response.json()
       
       set((state) => {
