@@ -278,7 +278,7 @@ export default function Player({ channels = [], scrollChannelIntoView }: PlayerP
         <div className="absolute top-3 right-3 z-10 w-2 h-2 bg-green-500 rounded-full shadow-lg shadow-green-500/50" title="Stream directo detectado" />
       )}
 
-      <div className="absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+      <div className={`absolute top-0 left-0 right-0 p-3 bg-gradient-to-b from-black/70 to-transparent transition-opacity pointer-events-none ${isFullscreen ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'}`}>
         <div className="flex items-center gap-2">
           {currentChannel.logo && (
             <img src={currentChannel.logo} alt={currentChannel.name} className="w-8 h-8 rounded" />
